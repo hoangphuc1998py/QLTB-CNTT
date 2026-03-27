@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Quản lý thiết bị</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginBox" class="login">
+  <h2>Đăng nhập</h2>
+  <input type="text" id="user" placeholder="Username">
+  <input type="password" id="pass" placeholder="Password">
+  <button onclick="login()">Đăng nhập</button>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none;">
+  <h1>💻 QUẢN LÝ THIẾT BỊ CNTT</h1>
+
+  <input id="name" placeholder="Tên thiết bị">
+  <input id="type" placeholder="Loại">
+  <input id="status" placeholder="Tình trạng">
+  <input type="file" id="image">
+
+  <button onclick="addDevice()">Thêm</button>
+  <button onclick="updateDevice()" id="updateBtn" style="display:none;">Cập nhật</button>
+  <button onclick="exportCSV()">Xuất Excel</button>
+
+  <input id="search" placeholder="🔍 Tìm kiếm..." onkeyup="render()">
+
+  <table>
+    <thead>
+      <tr>
+        <th>Ảnh</th>
+        <th>Tên</th>
+        <th>Loại</th>
+        <th>Tình trạng</th>
+        <th>Hành động</th>
+      </tr>
+    </thead>
+    <tbody id="list"></tbody>
+  </table>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
