@@ -1,0 +1,14 @@
+{
+  "name": "qltb-cntt",
+  "version": "1.0.0",
+  "description": "Ứng dụng quản lý thiết bị CNTT với giao diện hiện đại + SQLite database",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "sqlite3": "^5.1.7"
+  }
+}

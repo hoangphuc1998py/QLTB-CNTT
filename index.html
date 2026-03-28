@@ -1,49 +1,80 @@
 <!DOCTYPE html>
 <html lang="vi">
-<head>
-<meta charset="UTF-8">
-<title>Quản lý thiết bị</title>
-<link rel="stylesheet" href="style.css">
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quản lý thiết bị CNTT</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="hero">
+        <div>
+          <h1>💻 Quản lý thiết bị CNTT</h1>
+          <p>Theo dõi thiết bị tập trung với giao diện rõ ràng và dữ liệu lưu trên database.</p>
+        </div>
+      </header>
 
-<!-- LOGIN -->
-<div id="loginBox" class="login">
-  <h2>Đăng nhập</h2>
-  <input type="text" id="user" placeholder="Username">
-  <input type="password" id="pass" placeholder="Password">
-  <button onclick="login()">Đăng nhập</button>
-</div>
+      <section class="card">
+        <h2 id="formTitle">Thêm thiết bị</h2>
+        <form id="deviceForm" class="device-form">
+          <div class="form-row">
+            <label for="name">Tên thiết bị</label>
+            <input id="name" required placeholder="VD: Dell Latitude 7420" />
+          </div>
 
-<!-- APP -->
-<div id="app" style="display:none;">
-  <h1>💻 QUẢN LÝ THIẾT BỊ CNTT</h1>
+          <div class="form-row">
+            <label for="type">Loại</label>
+            <input id="type" required placeholder="Laptop / Máy in / Màn hình" />
+          </div>
 
-  <input id="name" placeholder="Tên thiết bị">
-  <input id="type" placeholder="Loại">
-  <input id="status" placeholder="Tình trạng">
-  <input type="file" id="image">
+          <div class="form-row">
+            <label for="status">Tình trạng</label>
+            <select id="status" required>
+              <option value="">-- Chọn tình trạng --</option>
+              <option value="Hoạt động tốt">Hoạt động tốt</option>
+              <option value="Đang bảo trì">Đang bảo trì</option>
+              <option value="Hỏng">Hỏng</option>
+            </select>
+          </div>
 
-  <button onclick="addDevice()">Thêm</button>
-  <button onclick="updateDevice()" id="updateBtn" style="display:none;">Cập nhật</button>
-  <button onclick="exportCSV()">Xuất Excel</button>
+          <div class="form-row">
+            <label for="image">Ảnh thiết bị (tuỳ chọn)</label>
+            <input type="file" id="image" accept="image/*" />
+          </div>
 
-  <input id="search" placeholder="🔍 Tìm kiếm..." onkeyup="render()">
+          <div class="btn-group">
+            <button type="submit" class="btn btn-primary" id="submitBtn">➕ Thêm thiết bị</button>
+            <button type="button" class="btn btn-secondary" id="cancelBtn" hidden>Huỷ chỉnh sửa</button>
+          </div>
+        </form>
+      </section>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Ảnh</th>
-        <th>Tên</th>
-        <th>Loại</th>
-        <th>Tình trạng</th>
-        <th>Hành động</th>
-      </tr>
-    </thead>
-    <tbody id="list"></tbody>
-  </table>
-</div>
+      <section class="card">
+        <div class="toolbar">
+          <input id="search" placeholder="🔍 Tìm theo tên hoặc loại thiết bị..." />
+          <button class="btn btn-export" id="exportBtn">⬇️ Xuất CSV</button>
+        </div>
 
-<script src="script.js"></script>
-</body>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Ảnh</th>
+                <th>Tên</th>
+                <th>Loại</th>
+                <th>Tình trạng</th>
+                <th>Ngày tạo</th>
+                <th>Hành động</th>
+              </tr>
+            </thead>
+            <tbody id="list"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <script src="script.js"></script>
+  </body>
 </html>

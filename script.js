@@ -1,127 +1,211 @@
-let devices = JSON.parse(localStorage.getItem("devices")) || [];
-let editIndex = -1;
+const form = document.getElementById('deviceForm');
+const formTitle = document.getElementById('formTitle');
+const submitBtn = document.getElementById('submitBtn');
+const cancelBtn = document.getElementById('cancelBtn');
+const listEl = document.getElementById('list');
+const searchEl = document.getElementById('search');
+const exportBtn = document.getElementById('exportBtn');
+const toastEl = document.getElementById('toast');
 
-// LOGIN (demo)
-function login() {
-  let user = document.getElementById("user").value;
-  let pass = document.getElementById("pass").value;
+let devices = [];
+let editingId = null;
 
-  if (user === "admin" && pass === "123") {
-    document.getElementById("loginBox").style.display = "none";
-    document.getElementById("app").style.display = "block";
-  } else {
-    alert("Sai tài khoản!");
-  }
+function showToast(message) {
+  toastEl.textContent = message;
+  toastEl.classList.add('show');
+  setTimeout(() => toastEl.classList.remove('show'), 2200);
 }
 
-// Lưu
-function save() {
-  localStorage.setItem("devices", JSON.stringify(devices));
+function formatDate(value) {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleString('vi-VN');
 }
 
-// Render
+function statusBadge(status) {
+  if (status === 'Hoạt động tốt') return '<span class="badge badge-good">Hoạt động tốt</span>';
+  if (status === 'Đang bảo trì') return '<span class="badge badge-maintain">Đang bảo trì</span>';
+  return '<span class="badge badge-broken">Hỏng</span>';
+}
+
+function sanitize(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
 function render() {
-  let keyword = document.getElementById("search").value.toLowerCase();
-  let html = "";
-
-  devices.forEach((d, i) => {
-    if (
-      d.name.toLowerCase().includes(keyword) ||
-      d.type.toLowerCase().includes(keyword)
-    ) {
-      html += `
-      <tr>
-        <td><img src="${d.image || ''}"></td>
-        <td>${d.name}</td>
-        <td>${d.type}</td>
-        <td>${d.status}</td>
-        <td>
-          <button onclick="editDevice(${i})">Sửa</button>
-          <button onclick="deleteDevice(${i})">Xóa</button>
-        </td>
-      </tr>`;
-    }
-  });
-
-  document.getElementById("list").innerHTML = html;
-}
-
-// Upload ảnh
-function getImageBase64(file, callback) {
-  let reader = new FileReader();
-  reader.onload = () => callback(reader.result);
-  reader.readAsDataURL(file);
-}
-
-// Thêm
-function addDevice() {
-  let file = document.getElementById("image").files[0];
-
-  if (file) {
-    getImageBase64(file, (img) => {
-      saveDevice(img);
-    });
-  } else {
-    saveDevice("");
+  if (!devices.length) {
+    listEl.innerHTML = `<tr><td colspan="6">Chưa có dữ liệu thiết bị.</td></tr>`;
+    return;
   }
+
+  listEl.innerHTML = devices
+    .map((d) => {
+      const image = d.image
+        ? `<img src="${sanitize(d.image)}" alt="${sanitize(d.name)}">`
+        : '<span>-</span>';
+
+      return `
+        <tr>
+          <td>${image}</td>
+          <td>${sanitize(d.name)}</td>
+          <td>${sanitize(d.type)}</td>
+          <td>${statusBadge(sanitize(d.status))}</td>
+          <td>${formatDate(d.created_at)}</td>
+          <td>
+            <div class="actions">
+              <button class="action-btn edit-btn" data-action="edit" data-id="${d.id}">Sửa</button>
+              <button class="action-btn delete-btn" data-action="delete" data-id="${d.id}">Xóa</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    })
+    .join('');
 }
 
-function saveDevice(img) {
-  let name = document.getElementById("name").value;
-  let type = document.getElementById("type").value;
-  let status = document.getElementById("status").value;
+async function fetchDevices() {
+  const keyword = searchEl.value.trim();
+  const url = keyword ? `/api/devices?search=${encodeURIComponent(keyword)}` : '/api/devices';
+  const res = await fetch(url);
 
-  devices.push({ name, type, status, image: img });
-  save();
+  if (!res.ok) {
+    throw new Error('Không thể tải dữ liệu từ server.');
+  }
+
+  devices = await res.json();
   render();
 }
 
-// Xóa
-function deleteDevice(i) {
-  devices.splice(i, 1);
-  save();
-  render();
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      resolve(undefined);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Không thể đọc file ảnh.'));
+    reader.readAsDataURL(file);
+  });
 }
 
-// Sửa
-function editDevice(i) {
-  let d = devices[i];
-
-  name.value = d.name;
-  type.value = d.type;
-  status.value = d.status;
-
-  editIndex = i;
-  updateBtn.style.display = "block";
+function resetForm() {
+  form.reset();
+  editingId = null;
+  formTitle.textContent = 'Thêm thiết bị';
+  submitBtn.textContent = '➕ Thêm thiết bị';
+  cancelBtn.hidden = true;
 }
 
-// Update
-function updateDevice() {
-  devices[editIndex] = {
-    name: name.value,
-    type: type.value,
-    status: status.value,
-    image: devices[editIndex].image
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  const payload = {
+    name: document.getElementById('name').value.trim(),
+    type: document.getElementById('type').value.trim(),
+    status: document.getElementById('status').value,
   };
 
-  save();
-  render();
-  updateBtn.style.display = "none";
-}
+  const file = document.getElementById('image').files[0];
+  const image = await fileToBase64(file);
 
-// Xuất CSV (Excel)
-function exportCSV() {
-  let csv = "Tên,Loại,Tình trạng\n";
+  if (image !== undefined) payload.image = image;
 
-  devices.forEach(d => {
-    csv += `${d.name},${d.type},${d.status}\n`;
+  const isEdit = editingId !== null;
+  const url = isEdit ? `/api/devices/${editingId}` : '/api/devices';
+  const method = isEdit ? 'PUT' : 'POST';
+
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
   });
 
-  let blob = new Blob([csv], { type: "text/csv" });
-  let a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "devices.csv";
-  a.click();
-}
+  const data = await res.json().catch(() => ({}));
 
-render();
+  if (!res.ok) {
+    showToast(data.error || 'Có lỗi xảy ra.');
+    return;
+  }
+
+  resetForm();
+  await fetchDevices();
+  showToast(isEdit ? 'Cập nhật thành công.' : 'Thêm mới thành công.');
+});
+
+listEl.addEventListener('click', async (event) => {
+  const btn = event.target.closest('button[data-action]');
+  if (!btn) return;
+
+  const id = Number(btn.dataset.id);
+  const action = btn.dataset.action;
+  const device = devices.find((d) => d.id === id);
+
+  if (!device) return;
+
+  if (action === 'edit') {
+    editingId = device.id;
+    document.getElementById('name').value = device.name;
+    document.getElementById('type').value = device.type;
+    document.getElementById('status').value = device.status;
+    document.getElementById('image').value = '';
+
+    formTitle.textContent = `Chỉnh sửa thiết bị #${device.id}`;
+    submitBtn.textContent = '💾 Lưu cập nhật';
+    cancelBtn.hidden = false;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+
+  if (action === 'delete') {
+    if (!window.confirm(`Bạn có chắc muốn xóa "${device.name}"?`)) return;
+
+    const res = await fetch(`/api/devices/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error || 'Không thể xóa thiết bị.');
+      return;
+    }
+
+    if (editingId === id) resetForm();
+    await fetchDevices();
+    showToast('Đã xóa thiết bị.');
+  }
+});
+
+cancelBtn.addEventListener('click', resetForm);
+
+searchEl.addEventListener('input', async () => {
+  await fetchDevices();
+});
+
+exportBtn.addEventListener('click', () => {
+  if (!devices.length) {
+    showToast('Không có dữ liệu để xuất CSV.');
+    return;
+  }
+
+  const header = 'Tên,Loại,Tình trạng,Ngày tạo\n';
+  const rows = devices
+    .map((d) => [d.name, d.type, d.status, d.created_at]
+      .map((v) => `"${String(v).replaceAll('"', '""')}"`)
+      .join(','))
+    .join('\n');
+
+  const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'devices.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+fetchDevices().catch((err) => {
+  console.error(err);
+  showToast('Không thể tải dữ liệu. Hãy kiểm tra server.');
+});
