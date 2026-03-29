@@ -111,6 +111,9 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+//app.listen(PORT, () => {
+  //console.log(`Server running on http://localhost:${PORT}`);
+//});
+app.listen(PORT, '192.168.10.41', () => {
+  console.log(`Server running on http://192.168.10.41:${PORT}`);
 });
