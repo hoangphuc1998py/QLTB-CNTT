@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Quản lý thiết bị CNTT</title>
+    <title>QUẢN LÝ THIẾT BỊ CNTT Anhuco</title>
     <link rel="stylesheet" href="style.css" />
   </head>
    <body>
@@ -38,6 +38,16 @@
           </div>
 
           <div class="form-row">
+            <label for="user">User</label>
+            <input id="user" placeholder="VD: phuc" />
+          </div>
+
+          <div class="form-row">
+            <label for="content">Nội dung</label>
+            <input id="content" placeholder="Mô tả ngắn nội dung sử dụng" />
+          </div>
+
+          <div class="form-row">
             <label for="status">Tình trạng</label>
             <select id="status" required>
               <option value="">-- Chọn tình trạng --</option>
@@ -69,28 +79,28 @@
           <article class="stat-item stat-total">
             <div class="stat-head">
               <span class="stat-icon">🧾</span>
-              <span class="stat-label">Tổng thiết bị</span>
+              <span class="stat-label">Tổng thiết bị:</span>
             </div>
             <strong id="totalCount">0</strong>
           </article>
           <article class="stat-item stat-good">
             <div class="stat-head">
               <span class="stat-icon">✅</span>
-              <span class="stat-label">Hoạt động tốt</span>
+              <span class="stat-label">Hoạt động tốt:</span>
             </div>
             <strong id="goodCount">0</strong>
           </article>
           <article class="stat-item stat-maintain">
             <div class="stat-head">
               <span class="stat-icon">🛠️</span>
-              <span class="stat-label">Đang bảo trì</span>
+              <span class="stat-label">Đang bảo trì:</span>
             </div>
             <strong id="maintainCount">0</strong>
           </article>
           <article class="stat-item stat-broken">
             <div class="stat-head">
               <span class="stat-icon">🚨</span>
-              <span class="stat-label">Hỏng</span>
+              <span class="stat-label">Hỏng:</span>
             </div>
             <strong id="brokenCount">0</strong>
           </article>
@@ -101,8 +111,10 @@
             <thead>
               <tr>
                 <th>Ảnh</th>
-                <th>Tên</th>
+                 <th>Tên</th>
                 <th>Loại</th>
+                <th>User</th>
+                <th>Nội dung</th>
                 <th>Tình trạng</th>
                 <th>Ngày tạo</th>
                 <th>Hành động</th>

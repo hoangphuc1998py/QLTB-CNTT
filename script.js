@@ -11,19 +11,37 @@ const totalCountEl = document.getElementById('totalCount');
 const goodCountEl = document.getElementById('goodCount');
 const maintainCountEl = document.getElementById('maintainCount');
 const brokenCountEl = document.getElementById('brokenCount');
+const imageTooltipEl = document.createElement('div');
 
 let devices = [];
 let editingId = null;
+
+imageTooltipEl.className = 'image-tooltip';
+imageTooltipEl.hidden = true;
+document.body.appendChild(imageTooltipEl);
 
 function showToast(message) {
   toastEl.textContent = message;
   toastEl.classList.add('show');
   setTimeout(() => toastEl.classList.remove('show'), 2200);
 }
-
 function formatDate(value) {
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleString('vi-VN');
+  if (!value) return '-';
+
+  const normalized = String(value).replace(' ', 'T');
+  const d = new Date(normalized);
+
+  if (!Number.isNaN(d.getTime())) {
+    return d.toLocaleString('vi-VN');
+  }
+
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
+  if (!match) return '-';
+
+  const [, year, month, day, hour, minute, second] = match;
+  const localDate = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+
+  return Number.isNaN(localDate.getTime()) ? '-' : localDate.toLocaleString('vi-VN');
 }
 
 function statusBadge(status) {
@@ -45,14 +63,22 @@ function render() {
   updateStats();
 
   if (!devices.length) {
-    listEl.innerHTML = `<tr><td colspan="6">Chưa có dữ liệu thiết bị.</td></tr>`;
+    listEl.innerHTML = `<tr><td colspan="8">Chưa có dữ liệu thiết bị.</td></tr>`;
     return;
   }
 
   listEl.innerHTML = devices
     .map((d, index) => {
+      const deviceInfo = [
+        `Tên: ${d.name || '-'}`,
+        `Loại: ${d.type || '-'}`,
+        `Tình trạng: ${d.status || '-'}`,
+        `User: ${d.user || '-'}`,
+        `Nội dung: ${d.content || '-'}`,
+      ].join('\n');
+
       const image = d.image
-        ? `<img src="${sanitize(d.image)}" alt="${sanitize(d.name)}">`
+        ? `<img src="${sanitize(d.image)}" alt="${sanitize(d.name)}" class="device-image" data-device-info="${sanitize(deviceInfo)}">`
         : '<span>-</span>';
 
       return `
@@ -60,6 +86,8 @@ function render() {
           <td>${image}</td>
           <td>${sanitize(d.name)}</td>
           <td>${sanitize(d.type)}</td>
+          <td>${sanitize(d.user || '-')}</td>
+          <td>${sanitize(d.content || '-')}</td>
           <td>${statusBadge(sanitize(d.status))}</td>
           <td>${formatDate(d.created_at)}</td>
           <td>
@@ -182,6 +210,8 @@ form.addEventListener('submit', async (event) => {
   const payload = {
     name: document.getElementById('name').value.trim(),
     type: document.getElementById('type').value.trim(),
+    user: document.getElementById('user').value.trim(),
+    content: document.getElementById('content').value.trim(),
     status: document.getElementById('status').value,
   };
 
@@ -226,6 +256,8 @@ listEl.addEventListener('click', async (event) => {
     editingId = device.id;
     document.getElementById('name').value = device.name;
     document.getElementById('type').value = device.type;
+    document.getElementById('user').value = device.user || '';
+    document.getElementById('content').value = device.content || '';
     document.getElementById('status').value = device.status;
     document.getElementById('image').value = '';
 
@@ -260,23 +292,95 @@ searchEl.addEventListener('input', async () => {
 
 exportBtn.addEventListener('click', () => {
   if (!devices.length) {
-    showToast('Không có dữ liệu để xuất CSV.');
+    showToast('Không có dữ liệu để xuất Excel.');
     return;
   }
 
-  const header = 'Tên,Loại,Tình trạng,Ngày tạo\n';
-  const rows = devices
-    .map((d) => [d.name, d.type, d.status, d.created_at]
-      .map((v) => `"${String(v).replaceAll('"', '""')}"`)
-      .join(','))
-    .join('\n');
+  const escapeXml = (value) => String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;');
 
-  const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+  const rowsXml = devices
+    .map((d) => {
+      const cells = [
+        d.name,
+        d.type,
+        d.status,
+        d.user || '',
+        d.content || '',
+        formatDate(d.created_at),
+      ]
+        .map((value) => `<Cell><Data ss:Type="String">${escapeXml(value)}</Data></Cell>`)
+        .join('');
+
+      return `<Row>${cells}</Row>`;
+    })
+    .join('');
+
+  const excelXml = `<?xml version="1.0" encoding="UTF-8"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+  xmlns:o="urn:schemas-microsoft-com:office:office"
+  xmlns:x="urn:schemas-microsoft-com:office:excel"
+  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+  xmlns:html="http://www.w3.org/TR/REC-html40">
+  <Styles>
+    <Style ss:ID="Header">
+      <Font ss:Bold="1"/>
+      <Interior ss:Color="#E7EFFf" ss:Pattern="Solid"/>
+    </Style>
+  </Styles>
+  <Worksheet ss:Name="Danh sach thiet bi">
+    <Table>
+      <Column ss:AutoFitWidth="1" ss:Width="160"/>
+      <Column ss:AutoFitWidth="1" ss:Width="140"/>
+      <Column ss:AutoFitWidth="1" ss:Width="140"/>
+      <Column ss:AutoFitWidth="1" ss:Width="160"/>
+      <Column ss:AutoFitWidth="1" ss:Width="260"/>
+      <Column ss:AutoFitWidth="1" ss:Width="170"/>
+      <Row>
+        <Cell ss:StyleID="Header"><Data ss:Type="String">Tên</Data></Cell>
+        <Cell ss:StyleID="Header"><Data ss:Type="String">Loại</Data></Cell>
+        <Cell ss:StyleID="Header"><Data ss:Type="String">Tình trạng</Data></Cell>
+        <Cell ss:StyleID="Header"><Data ss:Type="String">User</Data></Cell>
+        <Cell ss:StyleID="Header"><Data ss:Type="String">Nội dung</Data></Cell>
+        <Cell ss:StyleID="Header"><Data ss:Type="String">Ngày tạo</Data></Cell>
+      </Row>
+      ${rowsXml}
+    </Table>
+  </Worksheet>
+</Workbook>`;
+
+  const blob = new Blob([excelXml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'devices.csv';
+  a.download = 'devices.xls';
   a.click();
-URL.revokeObjectURL(a.href);
+  URL.revokeObjectURL(a.href);
+});
+
+listEl.addEventListener('mouseover', (event) => {
+  const imageEl = event.target.closest('.device-image');
+  if (!imageEl) return;
+
+  imageTooltipEl.textContent = imageEl.dataset.deviceInfo || '';
+  imageTooltipEl.hidden = false;
+});
+
+listEl.addEventListener('mousemove', (event) => {
+  if (imageTooltipEl.hidden) return;
+
+  imageTooltipEl.style.left = `${event.pageX + 14}px`;
+  imageTooltipEl.style.top = `${event.pageY + 14}px`;
+});
+
+listEl.addEventListener('mouseout', (event) => {
+  const imageEl = event.target.closest('.device-image');
+  if (!imageEl) return;
+
+  imageTooltipEl.hidden = true;
 });
 
 logoutBtn.addEventListener('click', async () => {

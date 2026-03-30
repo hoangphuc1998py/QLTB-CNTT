@@ -219,6 +219,59 @@ select:focus {
   background: var(--success);
 }
 
+.device-detail-modal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.42);
+  z-index: 9999;
+}
+
+.device-detail-card {
+  width: min(520px, 92vw);
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #dbe3f2;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.28);
+  padding: 14px 16px;
+}
+
+.device-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.device-detail-head h3 {
+  margin: 0;
+  font-size: 1.04rem;
+}
+
+.device-detail-close {
+  border: none;
+  background: transparent;
+  color: #334155;
+  font-size: 1.15rem;
+  cursor: pointer;
+}
+
+.device-detail-body p {
+  margin: 8px 0;
+  color: #1f2937;
+  line-height: 1.45;
+}
+
+.device-detail-body strong {
+  color: #0f172a;
+}
+
+.device-detail-modal[hidden] {
+  display: none !important;
+}
 .toolbar {
   display: flex;
   justify-content: space-between;
@@ -324,7 +377,7 @@ thead {
 th,
 td {
   text-align: left;
-  padding: 12px;
+  padding: 10px;
   border-bottom: 1px solid #edf0f6;
 }
 
@@ -443,19 +496,19 @@ td img {
 }
 /* Container */
 .stats {
-  width: 280px;
-  padding: 16px;
-  border-radius: 16px;
-  background: linear-gradient(145deg, #f8fafc, #e6ebf3);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
-  font-family: "Segoe UI", sans-serif;
-  animation: fadeIn 0.5s ease;
-  display: initial;
+    padding: 15px;
+    border-radius: 16px;
+    background: linear-gradient(145deg, #f8fafc, #e6ebf3);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+    font-family: "Segoe UI", sans-serif;
+    animation: fadeIn 0.5s ease;
+    display: flex;
+    justify-content: space-around;
 }
 
 /* Card item */
 .stat-item {
-  display: flex;
+  display: ruby;
   justify-content: space-between;
   align-items: center;
   padding: 12px 14px;

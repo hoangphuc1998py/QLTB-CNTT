@@ -20,10 +20,25 @@ db.serialize(() => {
       name TEXT NOT NULL,
       type TEXT NOT NULL,
       status TEXT NOT NULL,
+      user TEXT DEFAULT '',
+      content TEXT DEFAULT '',
       image TEXT DEFAULT '',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  db.all(`PRAGMA table_info(devices)`, (err, columns) => {
+    if (err) return;
+    const existingColumns = new Set(columns.map((column) => column.name));
+
+    if (!existingColumns.has('user')) {
+      db.run(`ALTER TABLE devices ADD COLUMN user TEXT DEFAULT ''`);
+    }
+
+    if (!existingColumns.has('content')) {
+      db.run(`ALTER TABLE devices ADD COLUMN content TEXT DEFAULT ''`);
+    }
+  });
 });
 
 app.use(express.json({ limit: '25mb' }));
@@ -104,17 +119,19 @@ app.get('/api/devices', requireAdminAuth, (req, res) => {
 });
 
 app.post('/api/devices', requireAdminAuth, (req, res) => {
-  const { name, type, status, image = '' } = req.body;
+  const { name, type, status, user = '', content = '', image = '' } = req.body;
   const cleanName = (name || '').trim();
   const cleanType = (type || '').trim();
   const cleanStatus = (status || '').trim();
+  const cleanUser = (user || '').trim();
+  const cleanContent = (content || '').trim();
 
   if (!cleanName || !cleanType || !cleanStatus) {
     return res.status(400).json({ error: 'Vui lòng nhập đầy đủ tên, loại và tình trạng.' });
   }
 
-  const sql = `INSERT INTO devices(name, type, status, image) VALUES(?, ?, ?, ?)`;
-  db.run(sql, [cleanName, cleanType, cleanStatus, image], function onInsert(err) {
+  const sql = `INSERT INTO devices(name, type, status, user, content, image, created_at) VALUES(?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))`;
+  db.run(sql, [cleanName, cleanType, cleanStatus, cleanUser, cleanContent, image], function onInsert(err) {
     if (err) return res.status(500).json({ error: 'Không thể thêm thiết bị.' });
 
     db.get(`SELECT * FROM devices WHERE id = ?`, [this.lastID], (getErr, row) => {
@@ -126,10 +143,12 @@ app.post('/api/devices', requireAdminAuth, (req, res) => {
 
 app.put('/api/devices/:id', requireAdminAuth, (req, res) => {
   const id = Number(req.params.id);
-  const { name, type, status, image } = req.body;
+  const { name, type, status, user = '', content = '', image } = req.body;
   const cleanName = (name || '').trim();
   const cleanType = (type || '').trim();
   const cleanStatus = (status || '').trim();
+  const cleanUser = (user || '').trim();
+  const cleanContent = (content || '').trim();
 
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(400).json({ error: 'ID thiết bị không hợp lệ.' });
@@ -140,12 +159,12 @@ app.put('/api/devices/:id', requireAdminAuth, (req, res) => {
   }
 
   const sql = image !== undefined
-    ? `UPDATE devices SET name = ?, type = ?, status = ?, image = ? WHERE id = ?`
-    : `UPDATE devices SET name = ?, type = ?, status = ? WHERE id = ?`;
+    ? `UPDATE devices SET name = ?, type = ?, status = ?, user = ?, content = ?, image = ? WHERE id = ?`
+    : `UPDATE devices SET name = ?, type = ?, status = ?, user = ?, content = ? WHERE id = ?`;
 
   const params = image !== undefined
-    ? [cleanName, cleanType, cleanStatus, image, id]
-    : [cleanName, cleanType, cleanStatus, id];
+    ? [cleanName, cleanType, cleanStatus, cleanUser, cleanContent, image, id]
+    : [cleanName, cleanType, cleanStatus, cleanUser, cleanContent, id];
 
   db.run(sql, params, function onUpdate(err) {
     if (err) return res.status(500).json({ error: 'Không thể cập nhật thiết bị.' });
