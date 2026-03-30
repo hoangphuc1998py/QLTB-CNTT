@@ -46,6 +46,14 @@ body {
   opacity: 0.95;
 }
 
+.hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+
 .card {
   background: var(--card);
   border: 1px solid var(--border);
@@ -222,6 +230,7 @@ td img {
 }
 
 @media (max-width: 650px) {
+  .hero-top,
   .btn-group,
   .toolbar {
     flex-direction: column;

@@ -6,6 +6,7 @@ const listEl = document.getElementById('list');
 const searchEl = document.getElementById('search');
 const exportBtn = document.getElementById('exportBtn');
 const toastEl = document.getElementById('toast');
+const logoutBtn = document.getElementById('logoutBtn');
 
 let devices = [];
 let editingId = null;
@@ -202,7 +203,17 @@ exportBtn.addEventListener('click', () => {
   a.href = URL.createObjectURL(blob);
   a.download = 'devices.csv';
   a.click();
-  URL.revokeObjectURL(a.href);
+URL.revokeObjectURL(a.href);
+});
+
+logoutBtn.addEventListener('click', async () => {
+  const res = await fetch('/api/admin/logout', { method: 'POST' });
+  if (!res.ok) {
+    showToast('Không thể đăng xuất. Vui lòng thử lại.');
+    return;
+  }
+
+  window.location.href = '/admin.html';
 });
 
 fetchDevices().catch((err) => {
