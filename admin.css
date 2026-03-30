@@ -2,10 +2,35 @@
   min-height: calc(100vh - 64px);
   display: grid;
   place-items: center;
+  animation: fadeIn 0.5s ease;
 }
 
 .login-card {
   width: min(480px, 92vw);
+  position: relative;
+  overflow: hidden;
+}
+
+.login-card::after {
+  content: '';
+  position: absolute;
+  inset: auto -60px -120px auto;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.2) 0%, transparent 72%);
+  animation: floatBlob 6s ease-in-out infinite;
+}
+
+.login-card::after {
+  content: '';
+  position: absolute;
+  inset: auto -60px -120px auto;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.2) 0%, transparent 72%);
+  animation: floatBlob 6s ease-in-out infinite;
 }
 
 .login-card h1 {

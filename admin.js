@@ -18,16 +18,6 @@ async function checkSession() {
   }
 }
 
-// loginForm.addEventListener('submit', async (event) => {
-//   event.preventDefault();
-
-//   const password = passwordEl.value;
-//   const res = await fetch('/api/admin/login', {
-//     method: 'POST',
-//     headers: { 'Content-Type': 'application/json' },
-//     body: JSON.stringify({ password }),
-//   });
-
 loginForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 

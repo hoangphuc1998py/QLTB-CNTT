@@ -7,6 +7,10 @@ const searchEl = document.getElementById('search');
 const exportBtn = document.getElementById('exportBtn');
 const toastEl = document.getElementById('toast');
 const logoutBtn = document.getElementById('logoutBtn');
+const totalCountEl = document.getElementById('totalCount');
+const goodCountEl = document.getElementById('goodCount');
+const maintainCountEl = document.getElementById('maintainCount');
+const brokenCountEl = document.getElementById('brokenCount');
 
 let devices = [];
 let editingId = null;
@@ -38,19 +42,21 @@ function sanitize(value) {
 }
 
 function render() {
+  updateStats();
+
   if (!devices.length) {
     listEl.innerHTML = `<tr><td colspan="6">Chưa có dữ liệu thiết bị.</td></tr>`;
     return;
   }
 
   listEl.innerHTML = devices
-    .map((d) => {
+    .map((d, index) => {
       const image = d.image
         ? `<img src="${sanitize(d.image)}" alt="${sanitize(d.name)}">`
         : '<span>-</span>';
 
       return `
-        <tr>
+        <tr style="--row-index:${index};">
           <td>${image}</td>
           <td>${sanitize(d.name)}</td>
           <td>${sanitize(d.type)}</td>
@@ -66,6 +72,73 @@ function render() {
       `;
     })
     .join('');
+}
+
+function updateStats() {
+  const goodCount = devices.filter((d) => d.status === 'Hoạt động tốt').length;
+  const maintainCount = devices.filter((d) => d.status === 'Đang bảo trì').length;
+  const brokenCount = devices.filter((d) => d.status === 'Hỏng').length;
+
+  animateCount(totalCountEl, devices.length);
+  animateCount(goodCountEl, goodCount);
+  animateCount(maintainCountEl, maintainCount);
+  animateCount(brokenCountEl, brokenCount);
+}
+
+function animateCount(el, target) {
+  const current = Number(el.textContent) || 0;
+  const start = performance.now();
+  const duration = 320;
+
+  function step(timestamp) {
+    const progress = Math.min((timestamp - start) / duration, 1);
+    const value = Math.round(current + ((target - current) * progress));
+    el.textContent = String(value);
+    if (progress < 1) {
+      requestAnimationFrame(step);
+    }
+  }
+
+  requestAnimationFrame(step);
+}
+
+function updateStats() {
+  const goodCount = devices.filter((d) => d.status === 'Hoạt động tốt').length;
+  const maintainCount = devices.filter((d) => d.status === 'Đang bảo trì').length;
+  const brokenCount = devices.filter((d) => d.status === 'Hỏng').length;
+
+  animateCount(totalCountEl, devices.length);
+  animateCount(goodCountEl, goodCount);
+  animateCount(maintainCountEl, maintainCount);
+  animateCount(brokenCountEl, brokenCount);
+}
+
+function animateCount(el, target) {
+  const current = Number(el.textContent) || 0;
+  const start = performance.now();
+  const duration = 320;
+
+  function step(timestamp) {
+    const progress = Math.min((timestamp - start) / duration, 1);
+    const value = Math.round(current + ((target - current) * progress));
+    el.textContent = String(value);
+    if (progress < 1) {
+      requestAnimationFrame(step);
+    }
+  }
+
+  requestAnimationFrame(step);
+}
+
+function updateStats() {
+  const goodCount = devices.filter((d) => d.status === 'Hoạt động tốt').length;
+  const maintainCount = devices.filter((d) => d.status === 'Đang bảo trì').length;
+  const brokenCount = devices.filter((d) => d.status === 'Hỏng').length;
+
+  totalCountEl.textContent = String(devices.length);
+  goodCountEl.textContent = String(goodCount);
+  maintainCountEl.textContent = String(maintainCount);
+  brokenCountEl.textContent = String(brokenCount);
 }
 
 async function fetchDevices() {
