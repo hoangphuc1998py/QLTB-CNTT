@@ -28,7 +28,6 @@ detailModalEl.innerHTML = `
   </div>
 `;
 document.body.appendChild(detailModalEl);
-
 const closeDetailBtn = detailModalEl.querySelector('#deviceDetailCloseBtn');
 const detailBodyEl = detailModalEl.querySelector('#deviceDetailBody');
 function showToast(message) {
@@ -95,6 +94,7 @@ function render() {
           <td>${formatDate(d.created_at)}</td>
           <td>
             <div class="actions">
+              <button class="action-btn print-btn" data-action="print" data-id="${d.id}">🖨️</button>
               <button class="action-btn edit-btn" data-action="edit" data-id="${d.id}">Sửa</button>
               <button class="action-btn delete-btn" data-action="delete" data-id="${d.id}">Xóa</button>
             </div>
@@ -204,8 +204,61 @@ function resetForm() {
   editingId = null;
   formTitle.textContent = 'Thêm thiết bị';
   submitBtn.textContent = '➕ Thêm thiết bị';
-  cancelBtn.hidden = true;
+ cancelBtn.hidden = true;
 }
+
+function printDevice(device) {
+  const printWindow = window.open('', '_blank', 'width=900,height=700');
+  if (!printWindow) {
+    showToast('Không thể mở cửa sổ in. Vui lòng kiểm tra popup blocker.');
+    return;
+  }
+
+  const imageBlock = device.image
+    ? `<img src="${sanitize(device.image)}" alt="${sanitize(device.name || 'Thiết bị')}" style="max-width: 240px; border-radius: 10px; border: 1px solid #dbe3f1;" />`
+    : '<em>Không có ảnh</em>';
+
+  const printableHtml = `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Phiếu thiết bị #${sanitize(device.id)}</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #0f172a; margin: 24px; }
+    h1 { margin-bottom: 4px; }
+    .muted { color: #64748b; margin-bottom: 16px; }
+    .grid { display: grid; grid-template-columns: 180px 1fr; gap: 10px 14px; align-items: start; }
+    .label { font-weight: 700; }
+    .box { border: 1px solid #dbe3f1; border-radius: 10px; padding: 12px; background: #f8fbff; }
+  </style>
+</head>
+<body>
+  <h1>Phiếu thông tin thiết bị</h1>
+  <p class="muted">In lúc: ${sanitize(new Date().toLocaleString('vi-VN'))}</p>
+  <div class="box">
+    <div class="grid">
+      <div class="label">ID</div><div>${sanitize(device.id)}</div>
+      <div class="label">Tên thiết bị</div><div>${sanitize(device.name || '-')}</div>
+      <div class="label">Loại</div><div>${sanitize(device.type || '-')}</div>
+      <div class="label">Tình trạng</div><div>${sanitize(device.status || '-')}</div>
+      <div class="label">User</div><div>${sanitize(device.user || '-')}</div>
+      <div class="label">Nội dung</div><div>${sanitize(device.content || '-')}</div>
+      <div class="label">Ngày tạo</div><div>${sanitize(formatDate(device.created_at))}</div>
+      <div class="label">Ảnh thiết bị</div><div>${imageBlock}</div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  printWindow.document.open();
+  printWindow.document.write(printableHtml);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => {
+    printWindow.print();
+  }, 150);
+}
+
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -268,6 +321,11 @@ listEl.addEventListener('click', async (event) => {
     submitBtn.textContent = '💾 Lưu cập nhật';
     cancelBtn.hidden = false;
     window.scrollTo({ top: 0, behavior: 'smooth' });
+     return;
+  }
+
+  if (action === 'print') {
+    printDevice(device);
     return;
   }
 
@@ -384,24 +442,41 @@ listEl.addEventListener('mouseover', (event) => {
     <p><strong>User:</strong> ${sanitize(device.user || '-')}</p>
     <p><strong>Nội dung:</strong> ${sanitize(device.content || '-')}</p>
     <p><strong>Ngày tạo:</strong> ${sanitize(formatDate(device.created_at))}</p>
-    ${imageHtml}
+  ${imageHtml}
   `;
+  detailModalEl.style.pointerEvents = 'none';
   detailModalEl.hidden = false;
 });
 
-closeDetailBtn?.addEventListener('click', () => {
+listEl.addEventListener('mouseout', (event) => {
+  const imageEl = event.target.closest('.device-image');
+  if (!imageEl) return;
+
+  const toElement = event.relatedTarget;
+  if (toElement && imageEl.contains(toElement)) return;
+
   detailModalEl.hidden = true;
+  detailModalEl.style.pointerEvents = '';
+});
+
+closeDetailBtn?.addEventListener('click', () => {
+    if (event.target === detailModalEl) {
+    detailModalEl.hidden = true;
+    detailModalEl.style.pointerEvents = '';
+  }
 });
 
 detailModalEl.addEventListener('click', (event) => {
-  if (event.target === detailModalEl) {
+   if (event.target === detailModalEl) {
     detailModalEl.hidden = true;
+    detailModalEl.style.pointerEvents = '';
   }
 });
 
 window.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') {
+    if (event.key === 'Escape') {
     detailModalEl.hidden = true;
+    detailModalEl.style.pointerEvents = '';
   }
 });
 
