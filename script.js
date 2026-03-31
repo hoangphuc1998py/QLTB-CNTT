@@ -11,15 +11,26 @@ const totalCountEl = document.getElementById('totalCount');
 const goodCountEl = document.getElementById('goodCount');
 const maintainCountEl = document.getElementById('maintainCount');
 const brokenCountEl = document.getElementById('brokenCount');
-const imageTooltipEl = document.createElement('div');
+const detailModalEl = document.createElement('div');
 
 let devices = [];
 let editingId = null;
 
-imageTooltipEl.className = 'image-tooltip';
-imageTooltipEl.hidden = true;
-document.body.appendChild(imageTooltipEl);
+detailModalEl.className = 'device-detail-modal';
+detailModalEl.hidden = true;
+detailModalEl.innerHTML = `
+  <div class="device-detail-card" role="dialog" aria-modal="true" aria-label="Thông tin chi tiết thiết bị">
+    <div class="device-detail-head">
+      <h3>📋 Thông tin chi tiết thiết bị</h3>
+      <button type="button" class="device-detail-close" id="deviceDetailCloseBtn" aria-label="Đóng">✕</button>
+    </div>
+    <div class="device-detail-body" id="deviceDetailBody"></div>
+  </div>
+`;
+document.body.appendChild(detailModalEl);
 
+const closeDetailBtn = detailModalEl.querySelector('#deviceDetailCloseBtn');
+const detailBodyEl = detailModalEl.querySelector('#deviceDetailBody');
 function showToast(message) {
   toastEl.textContent = message;
   toastEl.classList.add('show');
@@ -69,16 +80,8 @@ function render() {
 
   listEl.innerHTML = devices
     .map((d, index) => {
-      const deviceInfo = [
-        `Tên: ${d.name || '-'}`,
-        `Loại: ${d.type || '-'}`,
-        `Tình trạng: ${d.status || '-'}`,
-        `User: ${d.user || '-'}`,
-        `Nội dung: ${d.content || '-'}`,
-      ].join('\n');
-
-      const image = d.image
-        ? `<img src="${sanitize(d.image)}" alt="${sanitize(d.name)}" class="device-image" data-device-info="${sanitize(deviceInfo)}">`
+       const image = d.image
+        ? `<img src="${sanitize(d.image)}" alt="${sanitize(d.name)}" class="device-image" data-device-id="${d.id}">`
         : '<span>-</span>';
 
       return `
@@ -365,22 +368,41 @@ listEl.addEventListener('mouseover', (event) => {
   const imageEl = event.target.closest('.device-image');
   if (!imageEl) return;
 
-  imageTooltipEl.textContent = imageEl.dataset.deviceInfo || '';
-  imageTooltipEl.hidden = false;
+  const deviceId = Number(imageEl.dataset.deviceId);
+  const device = devices.find((item) => item.id === deviceId);
+  if (!device) return;
+
+  const imageHtml = device.image
+    ? `<p><strong>Ảnh thiết bị:</strong><br><img src="${sanitize(device.image)}" alt="${sanitize(device.name || 'Thiết bị')}" style="max-width: 100%; max-height: 260px; margin-top: 8px; border-radius: 10px; border: 1px solid #dbe3f1;" /></p>`
+    : '<p><strong>Ảnh thiết bị:</strong> Không có ảnh</p>';
+
+  detailBodyEl.innerHTML = `
+    <p><strong>ID:</strong> ${sanitize(device.id)}</p>
+    <p><strong>Tên thiết bị:</strong> ${sanitize(device.name || '-')}</p>
+    <p><strong>Loại:</strong> ${sanitize(device.type || '-')}</p>
+    <p><strong>Tình trạng:</strong> ${sanitize(device.status || '-')}</p>
+    <p><strong>User:</strong> ${sanitize(device.user || '-')}</p>
+    <p><strong>Nội dung:</strong> ${sanitize(device.content || '-')}</p>
+    <p><strong>Ngày tạo:</strong> ${sanitize(formatDate(device.created_at))}</p>
+    ${imageHtml}
+  `;
+  detailModalEl.hidden = false;
 });
 
-listEl.addEventListener('mousemove', (event) => {
-  if (imageTooltipEl.hidden) return;
-
-  imageTooltipEl.style.left = `${event.pageX + 14}px`;
-  imageTooltipEl.style.top = `${event.pageY + 14}px`;
+closeDetailBtn?.addEventListener('click', () => {
+  detailModalEl.hidden = true;
 });
 
-listEl.addEventListener('mouseout', (event) => {
-  const imageEl = event.target.closest('.device-image');
-  if (!imageEl) return;
+detailModalEl.addEventListener('click', (event) => {
+  if (event.target === detailModalEl) {
+    detailModalEl.hidden = true;
+  }
+});
 
-  imageTooltipEl.hidden = true;
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    detailModalEl.hidden = true;
+  }
 });
 
 logoutBtn.addEventListener('click', async () => {
