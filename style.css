@@ -524,7 +524,7 @@ td img {
 
 /* Card item */
 .stat-item {
-  display: ruby;
+  display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 12px 14px;
@@ -630,4 +630,113 @@ td img {
 @keyframes pulseRed {
   0%, 100% { box-shadow: 0 0 0 rgba(239, 68, 68, 0.3); }
   50% { box-shadow: 0 0 12px rgba(239, 68, 68, 0.4); }
+}
+
+@media (max-width: 1024px) {
+  .app-shell {
+    width: min(96vw, 980px);
+    margin: 20px auto;
+    gap: 16px;
+  }
+
+  .hero {
+    padding: 20px;
+  }
+
+  table {
+    min-width: 700px;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero-top .btn,
+  .toolbar-actions .btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .card {
+    padding: 14px;
+    border-radius: 12px;
+  }
+
+  .btn-group {
+    flex-direction: column;
+  }
+
+  .btn-group .btn {
+    width: 100%;
+  }
+
+  .device-form {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .stats {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .stat-item {
+    margin-bottom: 0;
+  }
+
+  th,
+  td {
+    padding: 8px;
+    font-size: 0.9rem;
+    white-space: nowrap;
+  }
+
+  .toast {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    font-size: 14px;
+  }
+
+  .hero h1 {
+    font-size: 1.25rem;
+  }
+
+  .hero p {
+    font-size: 0.92rem;
+  }
+
+  .pulse-tag {
+    font-size: 0.75rem;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+  }
+
+  .action-btn {
+    padding: 6px 8px;
+    font-size: 0.8rem;
+  }
+
+  td img {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }

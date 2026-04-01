@@ -1,9 +1,11 @@
 const changeHistoryListEl = document.getElementById('changeHistoryList');
+const historySearchEl = document.getElementById('historySearch');
 const toastEl = document.getElementById('toast');
 const logoutBtn = document.getElementById('logoutBtn');
 const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 const exportBtn = document.getElementById('exportBtn');
 let histories = [];
+let filteredHistories = [];
 const SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 function showToast(message) {
@@ -95,13 +97,19 @@ async function fetchHistory() {
     throw new Error('Không thể tải lịch sử thay đổi thiết bị.');
   }
 
-    histories = await res.json();
-  if (!histories.length) {
-    changeHistoryListEl.innerHTML = '<tr><td colspan="5">Chưa có lịch sử thay đổi.</td></tr>';
+  histories = await res.json();
+  applyHistoryFilter();
+}
+
+function renderHistoryRows(items) {
+  filteredHistories = items;
+
+  if (!items.length) {
+    changeHistoryListEl.innerHTML = '<tr><td colspan="5">Không tìm thấy lịch sử phù hợp.</td></tr>';
     return;
   }
 
-  changeHistoryListEl.innerHTML = histories
+  changeHistoryListEl.innerHTML = items
     .map((item) => `
       <tr>
         <td>#${sanitize(item.device_id)}</td>
@@ -112,7 +120,7 @@ async function fetchHistory() {
       </tr>
     `)
     .join('');
-    }
+}
 
 function setupIdleLogout() {
   let idleTimer = null;
@@ -148,21 +156,27 @@ function parseSnapshot(rawValue) {
     }
   }
 
-  return typeof rawValue === 'object' ? rawValue : null;
+return typeof rawValue === 'object' ? rawValue : null;
 }
 
-function parseSnapshot(rawValue) {
-  if (!rawValue) return null;
+function getHistoryDeviceUser(item) {
+  const oldSnapshot = parseSnapshot(item.old_data) || {};
+  const newSnapshot = parseSnapshot(item.new_data) || {};
+  return String(newSnapshot.user || oldSnapshot.user || '').trim();
+}
 
-  if (typeof rawValue === 'string') {
-    try {
-      return JSON.parse(rawValue);
-    } catch (error) {
-      return null;
-    }
+function applyHistoryFilter() {
+  if (!histories.length) {
+    changeHistoryListEl.innerHTML = '<tr><td colspan="5">Chưa có lịch sử thay đổi.</td></tr>';
+    return;
   }
 
-  return typeof rawValue === 'object' ? rawValue : null;
+  const keyword = (historySearchEl?.value || '').trim().toLowerCase();
+  const filtered = keyword
+    ? histories.filter((item) => getHistoryDeviceUser(item).toLowerCase().includes(keyword))
+    : histories;
+
+  renderHistoryRows(filtered);
 }
 
 clearHistoryBtn?.addEventListener('click', async () => {
@@ -182,8 +196,10 @@ clearHistoryBtn?.addEventListener('click', async () => {
   }
 
   showToast('Đã xóa toàn bộ lịch sử thay đổi.');
-await fetchHistory();
+  await fetchHistory();
 });
+
+historySearchEl?.addEventListener('input', applyHistoryFilter);
 
 exportBtn?.addEventListener('click', () => {
   if (!histories.length) {
@@ -198,7 +214,7 @@ exportBtn?.addEventListener('click', () => {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&apos;');
 
-  const rowsXml = histories
+const rowsXml = filteredHistories
     .map((item) => {
       const oldSnapshot = parseSnapshot(item.old_data) || {};
       const newSnapshot = parseSnapshot(item.new_data) || {};
