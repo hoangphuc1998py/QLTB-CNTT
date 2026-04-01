@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Báo giá đã duyệt</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="bg-orb orb-1" aria-hidden="true"></div>
+    <div class="bg-orb orb-2" aria-hidden="true"></div>
+    <div class="bg-orb orb-3" aria-hidden="true"></div>
+
+    <main class="app-shell">
+      <header class="hero">
+        <div class="hero-top">
+          <div>
+            <h1>✅ Báo giá đã duyệt</h1>
+            <p>Import file scan từ máy tính để lưu các báo giá đã duyệt.</p>
+          </div>
+          <div class="toolbar-actions">
+            <a class="btn btn-secondary" href="/index.html">⬅️ Quay về trang thiết bị</a>
+            <button type="button" class="btn btn-secondary" id="logoutBtn">Đăng xuất</button>
+          </div>
+        </div>
+      </header>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Thêm báo giá đã duyệt</h2>
+          <!-- <span class="pulse-tag">📎 Bắt buộc file scan</span> -->
+        </div>
+
+        <form id="approvedQuoteForm" class="device-form">
+          <div class="form-row">
+            <label for="quoteCode">Mã báo giá</label>
+            <input id="quoteCode" required placeholder="VD: BG-2026-001" />
+          </div>
+
+          <div class="form-row">
+            <label for="note">Ghi chú</label>
+            <input id="note" placeholder="Ghi chú nội dung duyệt" />
+          </div>
+
+          <div class="form-row">
+            <label for="scanFile">File scan (PDF/ảnh)</label>
+            <input id="scanFile" type="file" required accept=".pdf,image/*" />
+          </div>
+
+          <div class="btn-group">
+            <button class="btn btn-primary" type="submit">➕ Lưu báo giá đã duyệt</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Danh sách báo giá đã duyệt</h2>
+        </div>
+        <div class="table-wrap">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Mã báo giá</th>
+                <th>Ghi chú</th>
+                <th>File scan</th>
+                <th>Thời gian</th>
+                <th>Hành động</th>
+              </tr>
+            </thead>
+            <tbody id="approvedQuoteList">
+              <tr class="history-empty-row">
+                <td colspan="5">Đang tải dữ liệu...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <script src="approved-quotes.js"></script>
+  </body>
+</html>

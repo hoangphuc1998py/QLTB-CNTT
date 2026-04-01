@@ -34,19 +34,32 @@ db.serialize(() => {
     if (!existingColumns.has('user')) {
       db.run(`ALTER TABLE devices ADD COLUMN user TEXT DEFAULT ''`);
     }
-    if (!existingColumns.has('content')) {
+      if (!existingColumns.has('content')) {
       db.run(`ALTER TABLE devices ADD COLUMN content TEXT DEFAULT ''`);
     }
+    if (!existingColumns.has('image')) {
+      db.run(`ALTER TABLE devices ADD COLUMN image TEXT DEFAULT ''`);
+    }
   });
-
-  db.run(`
+ db.run(`
     CREATE TABLE IF NOT EXISTS device_change_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       device_id INTEGER NOT NULL,
       old_data TEXT NOT NULL,
       new_data TEXT NOT NULL,
       changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
+     FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS approved_quotes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      quote_code TEXT NOT NULL,
+      note TEXT DEFAULT '',
+      scan_name TEXT NOT NULL,
+      scan_file TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 });
@@ -95,22 +108,22 @@ function isSessionValid(token) {
   return true;
 }
 
-function touchSession(token) {
-  if (!token || !sessions.has(token)) return;
-  sessions.set(token, Date.now());
-}
+// function touchSession(token) {
+//   if (!token || !sessions.has(token)) return;
+//   sessions.set(token, Date.now());
+// }
 
-function isSessionValid(token) {
-  if (!token || !sessions.has(token)) return false;
+// function isSessionValid(token) {
+//   if (!token || !sessions.has(token)) return false;
 
-  const lastActivityAt = sessions.get(token);
-  if (Date.now() - lastActivityAt > SESSION_IDLE_TIMEOUT_MS) {
-    sessions.delete(token);
-    return false;
-  }
+//   const lastActivityAt = sessions.get(token);
+//   if (Date.now() - lastActivityAt > SESSION_IDLE_TIMEOUT_MS) {
+//     sessions.delete(token);
+//     return false;
+//   }
 
-  return true;
-}
+//   return true;
+// }
 
 function touchSession(token) {
   if (!token || !sessions.has(token)) return;
@@ -175,9 +188,134 @@ app.get('/api/device-change-history', requireAdminAuth, (req, res) => {
     LIMIT 100
   `;
 
+//   db.all(sql, (err, rows) => {
+//     if (err) return res.status(500).json({ error: 'Không thể lấy lịch sử thay đổi thiết bị.' });
+//     res.json(rows);
+//   });
+// });
+
   db.all(sql, (err, rows) => {
     if (err) return res.status(500).json({ error: 'Không thể lấy lịch sử thay đổi thiết bị.' });
     res.json(rows);
+  });
+});
+
+app.delete('/api/device-change-history', requireAdminAuth, (req, res) => {
+  db.run(`DELETE FROM device_change_history`, function onClearHistory(err) {
+    if (err) return res.status(500).json({ error: 'Không thể xóa lịch sử thay đổi thiết bị.' });
+    return res.json({ deletedCount: this.changes || 0 });
+  });
+});
+
+app.get('/api/approved-quotes', requireAdminAuth, (req, res) => {
+  db.all(
+    `SELECT id, quote_code, note, scan_name, scan_file, created_at
+     FROM approved_quotes
+     ORDER BY id DESC`,
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: 'Không thể tải danh sách báo giá đã duyệt.' });
+      return res.json(rows);
+    },
+  );
+});
+
+app.post('/api/approved-quotes', requireAdminAuth, (req, res) => {
+  const quoteCode = String(req.body.quoteCode || '').trim();
+  const note = String(req.body.note || '').trim();
+  const scanName = String(req.body.scanName || '').trim();
+  const scanFile = String(req.body.scanFile || '').trim();
+
+  if (!quoteCode || !scanName || !scanFile) {
+    return res.status(400).json({ error: 'Vui lòng nhập mã báo giá và chọn file scan.' });
+  }
+
+  db.run(
+    `INSERT INTO approved_quotes(quote_code, note, scan_name, scan_file, created_at)
+     VALUES(?, ?, ?, ?, datetime('now', 'localtime'))`,
+    [quoteCode, note, scanName, scanFile],
+    function onInsert(err) {
+      if (err) return res.status(500).json({ error: 'Không thể lưu báo giá đã duyệt.' });
+      db.get(`SELECT * FROM approved_quotes WHERE id = ?`, [this.lastID], (getErr, row) => {
+        if (getErr) return res.status(500).json({ error: 'Đã lưu nhưng không thể đọc lại dữ liệu.' });
+        return res.status(201).json(row);
+      });
+    },
+  );
+});
+
+app.delete('/api/approved-quotes/:id', requireAdminAuth, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'ID báo giá không hợp lệ.' });
+  }
+
+  db.run(`DELETE FROM approved_quotes WHERE id = ?`, [id], function onDelete(err) {
+    if (err) return res.status(500).json({ error: 'Không thể xóa báo giá đã duyệt.' });
+    if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy báo giá đã duyệt.' });
+    return res.status(204).send();
+  });
+});
+
+app.delete('/api/device-change-history', requireAdminAuth, (req, res) => {
+  db.run(`DELETE FROM device_change_history`, function onClearHistory(err) {
+    if (err) return res.status(500).json({ error: 'Không thể xóa lịch sử thay đổi thiết bị.' });
+    return res.json({ deletedCount: this.changes || 0 });
+  });
+});
+
+app.get('/api/approved-quotes', requireAdminAuth, (req, res) => {
+  db.all(
+    `SELECT id, quote_code, note, scan_name, scan_file, created_at
+     FROM approved_quotes
+     ORDER BY id DESC`,
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: 'Không thể tải danh sách báo giá đã duyệt.' });
+      return res.json(rows);
+    },
+  );
+});
+
+app.post('/api/approved-quotes', requireAdminAuth, (req, res) => {
+  const quoteCode = String(req.body.quoteCode || '').trim();
+  const note = String(req.body.note || '').trim();
+  const scanName = String(req.body.scanName || '').trim();
+  const scanFile = String(req.body.scanFile || '').trim();
+
+  if (!quoteCode || !scanName || !scanFile) {
+    return res.status(400).json({ error: 'Vui lòng nhập mã báo giá và chọn file scan.' });
+  }
+
+  db.run(
+    `INSERT INTO approved_quotes(quote_code, note, scan_name, scan_file, created_at)
+     VALUES(?, ?, ?, ?, datetime('now', 'localtime'))`,
+    [quoteCode, note, scanName, scanFile],
+    function onInsert(err) {
+      if (err) return res.status(500).json({ error: 'Không thể lưu báo giá đã duyệt.' });
+      db.get(`SELECT * FROM approved_quotes WHERE id = ?`, [this.lastID], (getErr, row) => {
+        if (getErr) return res.status(500).json({ error: 'Đã lưu nhưng không thể đọc lại dữ liệu.' });
+        return res.status(201).json(row);
+      });
+    },
+  );
+});
+
+app.delete('/api/approved-quotes/:id', requireAdminAuth, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'ID báo giá không hợp lệ.' });
+  }
+
+  db.run(`DELETE FROM approved_quotes WHERE id = ?`, [id], function onDelete(err) {
+    if (err) return res.status(500).json({ error: 'Không thể xóa báo giá đã duyệt.' });
+    if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy báo giá đã duyệt.' });
+    return res.status(204).send();
+  });
+});
+
+app.delete('/api/device-change-history', requireAdminAuth, (req, res) => {
+  db.run(`DELETE FROM device_change_history`, function onClearHistory(err) {
+    if (err) return res.status(500).json({ error: 'Không thể xóa lịch sử thay đổi thiết bị.' });
+    return res.json({ deletedCount: this.changes || 0 });
   });
 });
 

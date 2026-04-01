@@ -103,20 +103,18 @@ async function fetchHistory() {
 
 function renderHistoryRows(items) {
   filteredHistories = items;
-
   if (!items.length) {
-    changeHistoryListEl.innerHTML = '<tr><td colspan="5">Không tìm thấy lịch sử phù hợp.</td></tr>';
+    changeHistoryListEl.innerHTML = '<tr class="history-empty-row"><td colspan="5">Không tìm thấy lịch sử phù hợp.</td></tr>';
     return;
   }
-
   changeHistoryListEl.innerHTML = items
     .map((item) => `
       <tr>
-        <td>#${sanitize(item.device_id)}</td>
-        <td>${detectActionType(item)}</td>
-        <td>${formatDeviceSnapshot(item.old_data)}</td>
-        <td>${formatDeviceSnapshot(item.new_data)}</td>
-        <td>${formatDate(item.changed_at)}</td>
+        <td data-label="Thiết bị">#${sanitize(item.device_id)}</td>
+        <td data-label="Loại thao tác">${detectActionType(item)}</td>
+        <td data-label="Thông tin cũ">${formatDeviceSnapshot(item.old_data)}</td>
+        <td data-label="Thông tin mới">${formatDeviceSnapshot(item.new_data)}</td>
+        <td data-label="Thời gian chỉnh sửa">${formatDate(item.changed_at)}</td>
       </tr>
     `)
     .join('');
@@ -167,7 +165,7 @@ function getHistoryDeviceUser(item) {
 
 function applyHistoryFilter() {
   if (!histories.length) {
-    changeHistoryListEl.innerHTML = '<tr><td colspan="5">Chưa có lịch sử thay đổi.</td></tr>';
+    changeHistoryListEl.innerHTML = '<tr class="history-empty-row"><td colspan="5">Chưa có lịch sử thay đổi.</td></tr>';
     return;
   }
 

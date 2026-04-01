@@ -3,6 +3,7 @@
   display: grid;
   place-items: center;
   animation: fadeIn 0.5s ease;
+  padding: max(16px, env(safe-area-inset-top)) 0 max(16px, env(safe-area-inset-bottom));
 }
 
 .login-card {
@@ -36,6 +37,10 @@
   gap: 10px;
 }
 
+.login-form input {
+  width: 100%;
+}
+
 .login-form label {
   font-weight: 600;
 }
@@ -66,7 +71,12 @@ code {
     font-size: 1.2rem;
   }
 
-  .login-form .btn {
+ .login-form .btn {
     width: 100%;
+    min-height: 42px;
+  }
+
+  .login-form input {
+    font-size: 16px;
   }
 }

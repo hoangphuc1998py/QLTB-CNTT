@@ -25,6 +25,10 @@ body {
   overflow-x: hidden;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 .bg-orb {
   position: fixed;
   width: 260px;
@@ -67,6 +71,7 @@ body {
   display: grid;
   gap: 20px;
   animation: fadeUp 0.65s ease both;
+  padding-bottom: max(18px, env(safe-area-inset-bottom));
 }
 
 .hero {
@@ -174,6 +179,7 @@ select {
   border-radius: 10px;
   padding: 10px 12px;
   font-size: 0.95rem;
+  width: 100%;
 }
 
 input:focus,
@@ -198,6 +204,7 @@ select:focus {
   font-weight: 600;
   text-decoration: none;
   transition: transform 0.2s ease, filter 0.2s ease;
+  min-height: 42px;
 }
 
 .btn:hover {
@@ -370,6 +377,8 @@ select:focus {
 
 .table-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
 }
 
 table {
@@ -649,15 +658,33 @@ td img {
 }
 
 @media (max-width: 768px) {
+  .bg-orb {
+    width: 170px;
+    height: 170px;
+    opacity: 0.25;
+    filter: blur(4px);
+  }
+
   .hero-top {
     flex-direction: column;
     align-items: stretch;
   }
 
   .hero-top .btn,
-  .toolbar-actions .btn {
+  .toolbar-actions .btn,
+  .toolbar-actions a.btn {
     width: 100%;
     text-align: center;
+  }
+
+  .toolbar-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .toolbar {
+    gap: 10px;
   }
 
   .card {
@@ -685,6 +712,7 @@ td img {
 
   .stat-item {
     margin-bottom: 0;
+    min-height: 52px;
   }
 
   th,
@@ -694,10 +722,155 @@ td img {
     white-space: nowrap;
   }
 
-  .toast {
+ .toast {
     left: 12px;
     right: 12px;
     bottom: 12px;
+  }
+
+  .device-detail-card {
+    width: min(96vw, 520px);
+    max-height: 85vh;
+    overflow: auto;
+  }
+
+  .device-table {
+    min-width: 100%;
+  }
+
+  .device-table thead {
+    display: none;
+  }
+
+  .device-table,
+  .device-table tbody,
+  .device-table tr,
+  .device-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .device-table tr {
+    background: #fff;
+    border: 1px solid #dfe7f5;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+  }
+
+  .device-table td {
+    border-bottom: 1px dashed #e6ecf7;
+    white-space: normal;
+    padding: 10px;
+  }
+
+  .device-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .device-table td:last-child {
+    border-bottom: none;
+  }
+
+  .device-table .actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .device-table .action-btn {
+    width: 100%;
+  }
+
+  .device-table td img {
+    width: 72px;
+    height: 72px;
+  }
+
+  .device-table .device-empty-row {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .device-table .device-empty-row td {
+    display: table-cell;
+    border-bottom: none;
+    text-align: center;
+  }
+
+  .device-table .device-empty-row td::before {
+    content: none;
+  }
+
+  .history-table {
+    min-width: 100%;
+  }
+
+  .history-table thead {
+    display: none;
+  }
+
+  .history-table,
+  .history-table tbody,
+  .history-table tr,
+  .history-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .history-table tr {
+    background: #fff;
+    border: 1px solid #dfe7f5;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+  }
+
+  .history-table td {
+    border-bottom: 1px dashed #e6ecf7;
+    white-space: normal;
+    padding: 10px;
+  }
+
+  .history-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .history-table td:last-child {
+    border-bottom: none;
+  }
+
+  .history-table .history-empty-row {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .history-table .history-empty-row td {
+    display: table-cell;
+    border-bottom: none;
+    text-align: center;
+  }
+
+  .history-table .history-empty-row td::before {
+    content: none;
   }
 }
 
@@ -714,22 +887,79 @@ td img {
     font-size: 0.92rem;
   }
 
-  .pulse-tag {
+   .pulse-tag {
     font-size: 0.75rem;
+  }
+
+  .app-shell {
+    width: 95vw;
+    margin: 12px auto;
+    gap: 12px;
+  }
+
+  .hero {
+    padding: 14px;
+    border-radius: 12px;
+  }
+
+  .hero-top {
+    gap: 10px;
+  }
+
+  .hero-top .btn {
+    min-height: 40px;
+    padding: 9px 12px;
+  }
+
+  .section-head h2 {
+    margin: 0;
+    font-size: 1.05rem;
+  }
+
+  .card {
+    padding: 12px;
+  }
+
+  .form-row label {
+    font-size: 0.9rem;
+  }
+
+  input,
+  select {
+    font-size: 16px;
+  }
+
+  .toolbar-actions {
+    gap: 8px;
+  }
+
+  .btn {
+    width: 100%;
   }
 
   .actions {
     flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .device-table .actions {
+    grid-template-columns: 1fr;
   }
 
   .action-btn {
     padding: 6px 8px;
     font-size: 0.8rem;
+    min-height: 36px;
   }
+
 
   td img {
     width: 44px;
-    height: 44px;
+     height: 44px;
+  }
+
+  .history-device-info {
+    padding-left: 14px;
   }
 }
 

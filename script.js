@@ -123,7 +123,7 @@ function render() {
   updateStats();
 
   if (!devices.length) {
-    listEl.innerHTML = `<tr><td colspan="8">Chưa có dữ liệu thiết bị.</td></tr>`;
+    listEl.innerHTML = `<tr class="device-empty-row"><td colspan="8">Chưa có dữ liệu thiết bị.</td></tr>`;
     return;
   }
 
@@ -134,15 +134,15 @@ function render() {
         : '<span>-</span>';
 
       return `
-        <tr style="--row-index:${index};">
-          <td>${image}</td>
-          <td>${sanitize(d.name)}</td>
-          <td>${sanitize(d.type)}</td>
-          <td>${sanitize(d.user || '-')}</td>
-          <td>${sanitize(d.content || '-')}</td>
-          <td>${statusBadge(sanitize(d.status))}</td>
-          <td>${formatDate(d.created_at)}</td>
-          <td>
+       <tr style="--row-index:${index};">
+          <td data-label="Ảnh">${image}</td>
+          <td data-label="Tên">${sanitize(d.name)}</td>
+          <td data-label="Loại">${sanitize(d.type)}</td>
+          <td data-label="User">${sanitize(d.user || '-')}</td>
+          <td data-label="Nội dung">${sanitize(d.content || '-')}</td>
+          <td data-label="Tình trạng">${statusBadge(sanitize(d.status))}</td>
+          <td data-label="Ngày tạo">${formatDate(d.created_at)}</td>
+          <td data-label="Hành động">
             <div class="actions">
               <button class="action-btn print-btn" data-action="print" data-id="${d.id}">🖨️</button>
               <button class="action-btn edit-btn" data-action="edit" data-id="${d.id}">Sửa</button>
@@ -152,6 +152,7 @@ function render() {
         </tr>
       `;
     })
+    .join('');
 }
 
 function renderChangeHistory() {
@@ -174,16 +175,16 @@ function renderChangeHistory() {
     .join('');
 }
 
-function updateStats() {
-  const goodDeviceCount = devices.filter((d) => d.status === 'Hoạt động tốt').length;
-  const maintainDeviceCount = devices.filter((d) => d.status === 'Đang bảo trì').length;
-  const brokenDeviceCount = devices.filter((d) => d.status === 'Hỏng').length;
+// function updateStats() {
+//   const goodDeviceCount = devices.filter((d) => d.status === 'Hoạt động tốt').length;
+//   const maintainDeviceCount = devices.filter((d) => d.status === 'Đang bảo trì').length;
+//   const brokenDeviceCount = devices.filter((d) => d.status === 'Hỏng').length;
 
-  totalCountEl.textContent = String(devices.length);
-  goodCountEl.textContent = String(goodDeviceCount);
-  maintainCountEl.textContent = String(maintainDeviceCount);
-  brokenCountEl.textContent = String(brokenDeviceCount);
-}
+//   totalCountEl.textContent = String(devices.length);
+//   goodCountEl.textContent = String(goodDeviceCount);
+//   maintainCountEl.textContent = String(maintainDeviceCount);
+//   brokenCountEl.textContent = String(brokenDeviceCount);
+// }
 
 function animateCount(el, target) {
   const current = Number(el.textContent) || 0;
