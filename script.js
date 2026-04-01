@@ -11,9 +11,11 @@ const totalCountEl = document.getElementById('totalCount');
 const goodCountEl = document.getElementById('goodCount');
 const maintainCountEl = document.getElementById('maintainCount');
 const brokenCountEl = document.getElementById('brokenCount');
+const changeHistoryListEl = document.getElementById('changeHistoryList');
 const detailModalEl = document.createElement('div');
 
 let devices = [];
+let deviceChangeHistories = [];
 let editingId = null;
 
 detailModalEl.className = 'device-detail-modal';
@@ -66,7 +68,31 @@ function sanitize(value) {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+.replaceAll("'", '&#39;');
+}
+
+function formatDeviceSnapshot(rawValue) {
+  if (!rawValue) return '-';
+
+  let snapshot = rawValue;
+  if (typeof rawValue === 'string') {
+    try {
+      snapshot = JSON.parse(rawValue);
+    } catch (error) {
+      return sanitize(rawValue);
+    }
+  }
+
+  if (!snapshot || typeof snapshot !== 'object') return '-';
+  return `
+    <ul class="history-device-info">
+      <li><strong>Tên:</strong> ${sanitize(snapshot.name || '-')}</li>
+      <li><strong>Loại:</strong> ${sanitize(snapshot.type || '-')}</li>
+      <li><strong>User:</strong> ${sanitize(snapshot.user || '-')}</li>
+      <li><strong>Nội dung:</strong> ${sanitize(snapshot.content || '-')}</li>
+      <li><strong>Tình trạng:</strong> ${sanitize(snapshot.status || '-')}</li>
+    </ul>
+  `;
 }
 
 function render() {
@@ -102,6 +128,25 @@ function render() {
         </tr>
       `;
     })
+}
+
+function renderChangeHistory() {
+  if (!changeHistoryListEl) return;
+
+  if (!deviceChangeHistories.length) {
+    changeHistoryListEl.innerHTML = '<tr><td colspan="4">Chưa có lịch sử thay đổi.</td></tr>';
+    return;
+  }
+
+  changeHistoryListEl.innerHTML = deviceChangeHistories
+    .map((item) => `
+      <tr>
+        <td>#${sanitize(item.device_id)}</td>
+        <td>${formatDeviceSnapshot(item.old_data)}</td>
+        <td>${formatDeviceSnapshot(item.new_data)}</td>
+        <td>${formatDate(item.changed_at)}</td>
+      </tr>
+    `)
     .join('');
 }
 
@@ -183,6 +228,18 @@ async function fetchDevices() {
 
   devices = await res.json();
   render();
+}
+
+async function fetchDeviceChangeHistory() {
+  if (!changeHistoryListEl) return;
+
+  const res = await fetch('/api/device-change-history');
+  if (!res.ok) {
+    throw new Error('Không thể tải lịch sử thay đổi thiết bị.');
+  }
+
+  deviceChangeHistories = await res.json();
+  renderChangeHistory();
 }
 
 function fileToBase64(file) {
@@ -295,6 +352,7 @@ form.addEventListener('submit', async (event) => {
 
   resetForm();
   await fetchDevices();
+  await fetchDeviceChangeHistory();
   showToast(isEdit ? 'Cập nhật thành công.' : 'Thêm mới thành công.');
 });
 
@@ -339,8 +397,9 @@ listEl.addEventListener('click', async (event) => {
       return;
     }
 
-    if (editingId === id) resetForm();
+     if (editingId === id) resetForm();
     await fetchDevices();
+    await fetchDeviceChangeHistory();
     showToast('Đã xóa thiết bị.');
   }
 });
@@ -490,7 +549,7 @@ logoutBtn.addEventListener('click', async () => {
   window.location.href = '/admin.html';
 });
 
-fetchDevices().catch((err) => {
+Promise.all([fetchDevices(), fetchDeviceChangeHistory()]).catch((err) => {
   console.error(err);
   showToast('Không thể tải dữ liệu. Hãy kiểm tra server.');
-});
+})

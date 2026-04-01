@@ -34,11 +34,21 @@ db.serialize(() => {
     if (!existingColumns.has('user')) {
       db.run(`ALTER TABLE devices ADD COLUMN user TEXT DEFAULT ''`);
     }
-
     if (!existingColumns.has('content')) {
       db.run(`ALTER TABLE devices ADD COLUMN content TEXT DEFAULT ''`);
     }
   });
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS device_change_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      device_id INTEGER NOT NULL,
+      old_data TEXT NOT NULL,
+      new_data TEXT NOT NULL,
+      changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
+    )
+  `);
 });
 
 app.use(express.json({ limit: '25mb' }));
@@ -118,6 +128,20 @@ app.get('/api/devices', requireAdminAuth, (req, res) => {
   });
 });
 
+app.get('/api/device-change-history', requireAdminAuth, (req, res) => {
+  const sql = `
+    SELECT id, device_id, old_data, new_data, changed_at
+    FROM device_change_history
+    ORDER BY id DESC
+    LIMIT 100
+  `;
+
+  db.all(sql, (err, rows) => {
+    if (err) return res.status(500).json({ error: 'Không thể lấy lịch sử thay đổi thiết bị.' });
+    res.json(rows);
+  });
+});
+
 app.post('/api/devices', requireAdminAuth, (req, res) => {
   const { name, type, status, user = '', content = '', image = '' } = req.body;
   const cleanName = (name || '').trim();
@@ -158,21 +182,36 @@ app.put('/api/devices/:id', requireAdminAuth, (req, res) => {
     return res.status(400).json({ error: 'Vui lòng nhập đầy đủ tên, loại và tình trạng.' });
   }
 
-  const sql = image !== undefined
-    ? `UPDATE devices SET name = ?, type = ?, status = ?, user = ?, content = ?, image = ? WHERE id = ?`
-    : `UPDATE devices SET name = ?, type = ?, status = ?, user = ?, content = ? WHERE id = ?`;
+ db.get(`SELECT * FROM devices WHERE id = ?`, [id], (findErr, oldRow) => {
+    if (findErr) return res.status(500).json({ error: 'Không thể lấy thông tin thiết bị hiện tại.' });
+    if (!oldRow) return res.status(404).json({ error: 'Không tìm thấy thiết bị.' });
 
-  const params = image !== undefined
-    ? [cleanName, cleanType, cleanStatus, cleanUser, cleanContent, image, id]
-    : [cleanName, cleanType, cleanStatus, cleanUser, cleanContent, id];
+    const sql = image !== undefined
+      ? `UPDATE devices SET name = ?, type = ?, status = ?, user = ?, content = ?, image = ? WHERE id = ?`
+      : `UPDATE devices SET name = ?, type = ?, status = ?, user = ?, content = ? WHERE id = ?`;
 
-  db.run(sql, params, function onUpdate(err) {
-    if (err) return res.status(500).json({ error: 'Không thể cập nhật thiết bị.' });
-    if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy thiết bị.' });
+    const params = image !== undefined
+      ? [cleanName, cleanType, cleanStatus, cleanUser, cleanContent, image, id]
+      : [cleanName, cleanType, cleanStatus, cleanUser, cleanContent, id];
 
-    db.get(`SELECT * FROM devices WHERE id = ?`, [id], (getErr, row) => {
-      if (getErr) return res.status(500).json({ error: 'Đã cập nhật nhưng không thể đọc lại dữ liệu.' });
-      res.json(row);
+    db.run(sql, params, function onUpdate(err) {
+      if (err) return res.status(500).json({ error: 'Không thể cập nhật thiết bị.' });
+      if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy thiết bị.' });
+
+      db.get(`SELECT * FROM devices WHERE id = ?`, [id], (getErr, newRow) => {
+        if (getErr) return res.status(500).json({ error: 'Đã cập nhật nhưng không thể đọc lại dữ liệu.' });
+
+        db.run(
+          `INSERT INTO device_change_history(device_id, old_data, new_data, changed_at) VALUES (?, ?, ?, datetime('now', 'localtime'))`,
+          [id, JSON.stringify(oldRow), JSON.stringify(newRow)],
+          (historyErr) => {
+            if (historyErr) {
+              return res.status(500).json({ error: 'Đã cập nhật nhưng không thể lưu lịch sử thay đổi.' });
+            }
+            res.json(newRow);
+          },
+        );
+      });
     });
   });
 });

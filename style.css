@@ -132,6 +132,7 @@ body {
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 10px;
+  font-family: initial;
 }
 
 .pulse-tag {
@@ -408,6 +409,15 @@ td img {
 .actions {
   display: flex;
   gap: 8px;
+}
+
+.history-device-info {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.history-device-info li {
+  margin: 4px 0;
 }
 
 .action-btn {
