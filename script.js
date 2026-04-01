@@ -151,42 +151,14 @@ function renderChangeHistory() {
 }
 
 function updateStats() {
-  const goodCount = devices.filter((d) => d.status === 'Hoạt động tốt').length;
-  const maintainCount = devices.filter((d) => d.status === 'Đang bảo trì').length;
-  const brokenCount = devices.filter((d) => d.status === 'Hỏng').length;
+  const goodDeviceCount = devices.filter((d) => d.status === 'Hoạt động tốt').length;
+  const maintainDeviceCount = devices.filter((d) => d.status === 'Đang bảo trì').length;
+  const brokenDeviceCount = devices.filter((d) => d.status === 'Hỏng').length;
 
-  animateCount(totalCountEl, devices.length);
-  animateCount(goodCountEl, goodCount);
-  animateCount(maintainCountEl, maintainCount);
-  animateCount(brokenCountEl, brokenCount);
-}
-
-function animateCount(el, target) {
-  const current = Number(el.textContent) || 0;
-  const start = performance.now();
-  const duration = 320;
-
-  function step(timestamp) {
-    const progress = Math.min((timestamp - start) / duration, 1);
-    const value = Math.round(current + ((target - current) * progress));
-    el.textContent = String(value);
-    if (progress < 1) {
-      requestAnimationFrame(step);
-    }
-  }
-
-  requestAnimationFrame(step);
-}
-
-function updateStats() {
-  const goodCount = devices.filter((d) => d.status === 'Hoạt động tốt').length;
-  const maintainCount = devices.filter((d) => d.status === 'Đang bảo trì').length;
-  const brokenCount = devices.filter((d) => d.status === 'Hỏng').length;
-
-  animateCount(totalCountEl, devices.length);
-  animateCount(goodCountEl, goodCount);
-  animateCount(maintainCountEl, maintainCount);
-  animateCount(brokenCountEl, brokenCount);
+  totalCountEl.textContent = String(devices.length);
+  goodCountEl.textContent = String(goodDeviceCount);
+  maintainCountEl.textContent = String(maintainDeviceCount);
+  brokenCountEl.textContent = String(brokenDeviceCount);
 }
 
 function animateCount(el, target) {
@@ -519,10 +491,8 @@ listEl.addEventListener('mouseout', (event) => {
 });
 
 closeDetailBtn?.addEventListener('click', () => {
-    if (event.target === detailModalEl) {
-    detailModalEl.hidden = true;
-    detailModalEl.style.pointerEvents = '';
-  }
+  detailModalEl.hidden = true;
+  detailModalEl.style.pointerEvents = '';
 });
 
 detailModalEl.addEventListener('click', (event) => {
