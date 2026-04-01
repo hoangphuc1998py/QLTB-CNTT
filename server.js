@@ -8,8 +8,8 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 const LEGACY_ADMIN_PASSWORDS = ['admin', '123456'];
 const SESSION_COOKIE_NAME = 'admin_session';
-const sessions = new Set();
-
+const SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+const sessions = new Map();
 const dbPath = path.join(__dirname, 'devices.db');
 const db = new sqlite3.Database(dbPath);
 
@@ -76,10 +76,45 @@ function getSessionToken(req) {
 
 function requireAdminAuth(req, res, next) {
   const token = getSessionToken(req);
-  if (!token || !sessions.has(token)) {
+  if (!isSessionValid(token)) {
     return res.status(401).json({ error: 'Bạn cần đăng nhập admin.' });
   }
+  touchSession(token);
   return next();
+}
+
+function isSessionValid(token) {
+  if (!token || !sessions.has(token)) return false;
+
+  const lastActivityAt = sessions.get(token);
+  if (Date.now() - lastActivityAt > SESSION_IDLE_TIMEOUT_MS) {
+    sessions.delete(token);
+    return false;
+  }
+
+  return true;
+}
+
+function touchSession(token) {
+  if (!token || !sessions.has(token)) return;
+  sessions.set(token, Date.now());
+}
+
+function isSessionValid(token) {
+  if (!token || !sessions.has(token)) return false;
+
+  const lastActivityAt = sessions.get(token);
+  if (Date.now() - lastActivityAt > SESSION_IDLE_TIMEOUT_MS) {
+    sessions.delete(token);
+    return false;
+  }
+
+  return true;
+}
+
+function touchSession(token) {
+  if (!token || !sessions.has(token)) return;
+  sessions.set(token, Date.now());
 }
 
 app.post('/api/admin/login', (req, res) => {
@@ -90,12 +125,12 @@ app.post('/api/admin/login', (req, res) => {
     return res.status(401).json({ error: 'Sai mật khẩu admin.' });
   }
 
-  const token = crypto.randomBytes(32).toString('hex');
-  sessions.add(token);
+ const token = crypto.randomBytes(32).toString('hex');
+  sessions.set(token, Date.now());
 
   res.setHeader(
     'Set-Cookie',
-    `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=28800`,
+     `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=300`,
   );
 
   return res.json({ authenticated: true });
@@ -103,12 +138,16 @@ app.post('/api/admin/login', (req, res) => {
 
 app.get('/api/admin/session', (req, res) => {
   const token = getSessionToken(req);
-  res.json({ authenticated: Boolean(token && sessions.has(token)) });
+  const authenticated = isSessionValid(token);
+  if (authenticated) touchSession(token);
+  res.json({ authenticated });
 });
 
 app.post('/api/admin/logout', (req, res) => {
   const token = getSessionToken(req);
-  if (token) sessions.delete(token);
+  if (token) {
+    sessions.delete(token);
+  }
 
   res.setHeader('Set-Cookie', `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
   res.status(204).send();

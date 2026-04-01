@@ -13,6 +13,7 @@ const maintainCountEl = document.getElementById('maintainCount');
 const brokenCountEl = document.getElementById('brokenCount');
 const changeHistoryListEl = document.getElementById('changeHistoryList');
 const detailModalEl = document.createElement('div');
+const SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 let devices = [];
 let deviceChangeHistories = [];
@@ -36,6 +37,29 @@ function showToast(message) {
   toastEl.textContent = message;
   toastEl.classList.add('show');
   setTimeout(() => toastEl.classList.remove('show'), 2200);
+}
+
+function setupIdleLogout() {
+  let idleTimer = null;
+
+  const logoutForIdle = async () => {
+    await fetch('/api/admin/logout', { method: 'POST' }).catch(() => {});
+    showToast('Phiên đăng nhập đã hết hạn do không thao tác trong 5 phút.');
+    setTimeout(() => {
+      window.location.href = '/admin.html';
+    }, 400);
+  };
+
+  const resetIdleTimer = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(logoutForIdle, SESSION_IDLE_TIMEOUT_MS);
+  };
+
+  ['click', 'keydown', 'mousemove', 'scroll', 'touchstart'].forEach((eventName) => {
+    window.addEventListener(eventName, resetIdleTimer, { passive: true });
+  });
+
+  resetIdleTimer();
 }
 function formatDate(value) {
   if (!value) return '-';
@@ -522,4 +546,6 @@ logoutBtn.addEventListener('click', async () => {
 Promise.all([fetchDevices(), fetchDeviceChangeHistory()]).catch((err) => {
   console.error(err);
   showToast('Không thể tải dữ liệu. Hãy kiểm tra server.');
-})
+});
+
+setupIdleLogout();
