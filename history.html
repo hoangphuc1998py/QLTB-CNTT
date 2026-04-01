@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lịch sử thay đổi thiết bị</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="bg-orb orb-1" aria-hidden="true"></div>
+    <div class="bg-orb orb-2" aria-hidden="true"></div>
+    <div class="bg-orb orb-3" aria-hidden="true"></div>
+
+    <main class="app-shell">
+      <header class="hero">
+        <div class="hero-top">
+          <div>
+            <h1>🕘 Lịch sử thay đổi thiết bị</h1>
+            <p>Theo dõi các lần chỉnh sửa thiết bị gần nhất.</p>
+          </div>
+          <div class="toolbar-actions">
+            <a class="btn btn-secondary" href="/index.html">⬅️ Quay về trang thiết bị</a>
+            <button type="button" class="btn btn-secondary" id="logoutBtn">Đăng xuất</button>
+          </div>
+        </div>
+      </header>
+
+      <section class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Thiết bị</th>
+                <th>Thông tin cũ</th>
+                <th>Thông tin mới</th>
+                <th>Thời gian chỉnh sửa</th>
+              </tr>
+            </thead>
+            <tbody id="changeHistoryList">
+              <tr>
+                <td colspan="4">Đang tải dữ liệu...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <script src="history.js"></script>
+  </body>
+</html>

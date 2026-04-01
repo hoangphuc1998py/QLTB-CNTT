@@ -222,10 +222,26 @@ app.delete('/api/devices/:id', requireAdminAuth, (req, res) => {
     return res.status(400).json({ error: 'ID thiết bị không hợp lệ.' });
   }
 
-  db.run(`DELETE FROM devices WHERE id = ?`, [id], function onDelete(err) {
-    if (err) return res.status(500).json({ error: 'Không thể xóa thiết bị.' });
-    if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy thiết bị.' });
-    res.status(204).send();
+  db.get(`SELECT * FROM devices WHERE id = ?`, [id], (findErr, oldRow) => {
+    if (findErr) return res.status(500).json({ error: 'Không thể lấy thông tin thiết bị hiện tại.' });
+    if (!oldRow) return res.status(404).json({ error: 'Không tìm thấy thiết bị.' });
+
+    db.run(`DELETE FROM devices WHERE id = ?`, [id], function onDelete(err) {
+      if (err) return res.status(500).json({ error: 'Không thể xóa thiết bị.' });
+      if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy thiết bị.' });
+
+      const deletedSnapshot = { ...oldRow, deleted: true };
+      db.run(
+        `INSERT INTO device_change_history(device_id, old_data, new_data, changed_at) VALUES (?, ?, ?, datetime('now', 'localtime'))`,
+        [id, JSON.stringify(oldRow), JSON.stringify(deletedSnapshot)],
+        (historyErr) => {
+          if (historyErr) {
+            return res.status(500).json({ error: 'Đã xóa nhưng không thể lưu lịch sử thay đổi.' });
+          }
+          return res.status(204).send();
+        },
+      );
+    });
   });
 });
 

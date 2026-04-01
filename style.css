@@ -196,6 +196,7 @@ select:focus {
   color: white;
   cursor: pointer;
   font-weight: 600;
+  text-decoration: none;
   transition: transform 0.2s ease, filter 0.2s ease;
 }
 
@@ -279,6 +280,12 @@ select:focus {
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 12px;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 #search {

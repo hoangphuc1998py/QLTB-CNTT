@@ -72,7 +72,10 @@
        <section class="card">
         <div class="toolbar">
           <input id="search" placeholder="🔍 Tìm theo tên hoặc loại thiết bị..." />
-          <button class="btn btn-export" id="exportBtn">⬇️ Xuất CSV</button>
+          <div class="toolbar-actions">
+            <a class="btn btn-secondary" href="/history.html">🕘 Xem lịch sử thay đổi</a>
+            <button class="btn btn-export" id="exportBtn">⬇️ Xuất CSV</button>
+          </div>
         </div>
 
         <div class="stats" id="stats">
@@ -125,28 +128,6 @@
         </div>
       </section>
 
-      <section class="card">
-        <div class="section-head">
-          <h2>🕘 Lịch sử thay đổi thiết bị</h2>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Thiết bị</th>
-                <th>Thông tin cũ</th>
-                <th>Thông tin mới</th>
-                <th>Thời gian chỉnh sửa</th>
-              </tr>
-            </thead>
-            <tbody id="changeHistoryList">
-              <tr>
-                <td colspan="4">Chưa có lịch sử thay đổi.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
     </main>
     <div id="toast" class="toast"></div>
     <script src="script.js"></script>
