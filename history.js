@@ -4,8 +4,11 @@ const toastEl = document.getElementById('toast');
 const logoutBtn = document.getElementById('logoutBtn');
 const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 const exportBtn = document.getElementById('exportBtn');
+const currentUsernameEl = document.getElementById('currentUsername');
+const currentRoleEl = document.getElementById('currentRole');
 let histories = [];
 let filteredHistories = [];
+let currentUser = { role: 'user', username: '' };
 const SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 function showToast(message) {
@@ -53,6 +56,7 @@ function formatDeviceSnapshot(rawValue) {
     <ul class="history-device-info">
       <li><strong>Tên:</strong> ${sanitize(snapshot.name || '-')}</li>
       <li><strong>Loại:</strong> ${sanitize(snapshot.type || '-')}</li>
+      <li><strong>Số lượng:</strong> ${sanitize(snapshot.quantity ?? 1)}</li>
       <li><strong>User:</strong> ${sanitize(snapshot.user || '-')}</li>
       <li><strong>Nội dung:</strong> ${sanitize(snapshot.content || '-')}</li>
       <li><strong>Tình trạng:</strong> ${sanitize(snapshot.status || '-')}</li>
@@ -83,6 +87,24 @@ async function checkSession() {
   const data = await res.json();
   if (!data.authenticated) {
     window.location.href = '/admin.html';
+    return;
+  }
+
+  currentUser = {
+    username: data.username || '',
+    role: data.role || 'user',
+  };
+
+  if (currentUsernameEl) currentUsernameEl.textContent = currentUser.username || '-';
+  if (currentRoleEl) currentRoleEl.textContent = currentUser.role;
+}
+
+function canRestore(item) {
+  try {
+    const snapshot = typeof item.new_data === 'string' ? JSON.parse(item.new_data) : item.new_data;
+    return currentUser.role === 'admin' && Boolean(snapshot?.deleted);
+  } catch (error) {
+    return false;
   }
 }
 
@@ -104,7 +126,7 @@ async function fetchHistory() {
 function renderHistoryRows(items) {
   filteredHistories = items;
   if (!items.length) {
-    changeHistoryListEl.innerHTML = '<tr class="history-empty-row"><td colspan="5">Không tìm thấy lịch sử phù hợp.</td></tr>';
+    changeHistoryListEl.innerHTML = '<tr class="history-empty-row"><td colspan="6">Không tìm thấy lịch sử phù hợp.</td></tr>';
     return;
   }
   changeHistoryListEl.innerHTML = items
@@ -115,6 +137,9 @@ function renderHistoryRows(items) {
         <td data-label="Thông tin cũ">${formatDeviceSnapshot(item.old_data)}</td>
         <td data-label="Thông tin mới">${formatDeviceSnapshot(item.new_data)}</td>
         <td data-label="Thời gian chỉnh sửa">${formatDate(item.changed_at)}</td>
+        <td data-label="Khôi phục">
+          ${canRestore(item) ? `<button class="action-btn edit-btn" data-action="restore" data-history-id="${item.id}">Restore</button>` : '<span>-</span>'}
+        </td>
       </tr>
     `)
     .join('');
@@ -165,7 +190,7 @@ function getHistoryDeviceUser(item) {
 
 function applyHistoryFilter() {
   if (!histories.length) {
-    changeHistoryListEl.innerHTML = '<tr class="history-empty-row"><td colspan="5">Chưa có lịch sử thay đổi.</td></tr>';
+    changeHistoryListEl.innerHTML = '<tr class="history-empty-row"><td colspan="6">Chưa có lịch sử thay đổi.</td></tr>';
     return;
   }
 
@@ -177,7 +202,40 @@ function applyHistoryFilter() {
   renderHistoryRows(filtered);
 }
 
+changeHistoryListEl?.addEventListener('click', async (event) => {
+  const btn = event.target.closest('button[data-action="restore"]');
+  if (!btn) return;
+
+  if (currentUser.role !== 'admin') {
+    showToast('Bạn không có quyền khôi phục thiết bị.');
+    return;
+  }
+
+  const historyId = Number(btn.dataset.historyId);
+  if (!Number.isInteger(historyId) || historyId <= 0) return;
+
+  const confirmed = window.confirm('Bạn có muốn khôi phục thiết bị đã xóa này?');
+  if (!confirmed) return;
+
+  const res = await fetch(`/api/device-change-history/${historyId}/restore`, { method: 'POST' });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    showToast(data.error || 'Không thể khôi phục thiết bị.');
+    return;
+  }
+
+  showToast('Đã khôi phục thiết bị thành công.');
+  localStorage.setItem('devices_sync_ts', String(Date.now()));
+  await fetchHistory();
+});
+
 clearHistoryBtn?.addEventListener('click', async () => {
+  if (currentUser.role !== 'admin') {
+    showToast('Tài khoản user không có quyền xóa lịch sử.');
+    return;
+  }
+
   const confirmed = window.confirm('Bạn có chắc muốn xóa toàn bộ lịch sử thay đổi thiết bị?');
   if (!confirmed) return;
 
@@ -223,11 +281,13 @@ const rowsXml = filteredHistories
         actionType,
         oldSnapshot.name || '-',
         oldSnapshot.type || '-',
+        oldSnapshot.quantity ?? 1,
         oldSnapshot.user || '-',
         oldSnapshot.content || '-',
         oldSnapshot.status || '-',
         newSnapshot.name || '-',
         newSnapshot.type || '-',
+        newSnapshot.quantity ?? 1,
         newSnapshot.user || '-',
         newSnapshot.content || '-',
         newSnapshot.status || '-',
@@ -272,11 +332,13 @@ const rowsXml = filteredHistories
         <Cell ss:StyleID="Header"><Data ss:Type="String">Loại thao tác</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Tên cũ</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Loại cũ</Data></Cell>
+        <Cell ss:StyleID="Header"><Data ss:Type="String">Số lượng cũ</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">User cũ</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Nội dung cũ</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Tình trạng cũ</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Tên mới</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Loại mới</Data></Cell>
+        <Cell ss:StyleID="Header"><Data ss:Type="String">Số lượng mới</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">User mới</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Nội dung mới</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Tình trạng mới</Data></Cell>

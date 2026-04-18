@@ -6,16 +6,17 @@
     <title>QUẢN LÝ THIẾT BỊ CNTT Anhuco</title>
     <link rel="stylesheet" href="style.css" />
   </head>
-   <body>
+  <body>
     <div class="bg-orb orb-1" aria-hidden="true"></div>
     <div class="bg-orb orb-2" aria-hidden="true"></div>
     <div class="bg-orb orb-3" aria-hidden="true"></div>
     <main class="app-shell">
-     <header class="hero">
+      <header class="hero">
         <div class="hero-top">
           <div>
             <h1>💻 Quản lý thiết bị CNTT</h1>
             <p>Theo dõi thiết bị tập trung với giao diện rõ ràng và dữ liệu lưu trên database.</p>
+            <p><strong>👤 Người dùng đăng nhập:</strong> <span id="currentUsername">-</span> (<span id="currentRole">-</span>)</p>
           </div>
           <button type="button" class="btn btn-secondary" id="logoutBtn">Đăng xuất</button>
         </div>
@@ -35,6 +36,11 @@
           <div class="form-row">
             <label for="type">Loại</label>
             <input id="type" required placeholder="Laptop / Máy in / Màn hình" />
+          </div>
+
+          <div class="form-row">
+            <label for="quantity">Số lượng</label>
+            <input id="quantity" type="number" min="1" step="1" value="1" required />
           </div>
 
           <div class="form-row">
@@ -69,10 +75,51 @@
         </form>
       </section>
 
-       <section class="card">
+      <section class="card" id="userManagementSection" hidden>
+        <div class="section-head">
+          <h2>Phân quyền & thêm người dùng</h2>
+          <span class="pulse-tag">🔐 Chỉ admin</span>
+        </div>
+        <form id="userForm" class="device-form">
+          <div class="form-row">
+            <label for="newUsername">Tài khoản</label>
+            <input id="newUsername" required placeholder="VD: nguyenvana" />
+          </div>
+          <div class="form-row">
+            <label for="newPassword">Mật khẩu</label>
+            <input id="newPassword" type="password" required placeholder="Nhập mật khẩu" />
+          </div>
+          <div class="form-row">
+            <label for="newRole">Vai trò</label>
+            <select id="newRole" required>
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div class="btn-group">
+            <button type="submit" class="btn btn-primary">➕ Thêm người dùng</button>
+          </div>
+        </form>
+
+        <div class="table-wrap" style="margin-top:16px;">
+          <table class="device-table">
+            <thead>
+              <tr>
+                <th>Tài khoản</th>
+                <th>Vai trò</th>
+                <th>Ngày tạo</th>
+                <th>Hành động</th>
+              </tr>
+            </thead>
+            <tbody id="userList"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
         <div class="toolbar">
           <input id="search" placeholder="🔍 Tìm theo tên hoặc loại thiết bị..." />
-         <div class="toolbar-actions">
+          <div class="toolbar-actions">
             <a class="btn btn-primary" href="/approved-quotes.html">✅ Báo giá đã duyệt</a>
             <a class="btn btn-secondary" href="/history.html">🕘 Xem lịch sử thay đổi</a>
             <button class="btn btn-export" id="exportBtn">⬇️ Xuất Excel</button>
@@ -110,13 +157,14 @@
           </article>
         </div>
 
-      <div class="table-wrap">
+        <div class="table-wrap">
           <table class="device-table">
             <thead>
               <tr>
                 <th>Ảnh</th>
                 <th>Tên thiết bị</th>
                 <th>Loại</th>
+                <th>Số lượng</th>
                 <th>User</th>
                 <th>Nội dung</th>
                 <th>Tình trạng</th>
@@ -128,7 +176,6 @@
           </table>
         </div>
       </section>
-
     </main>
     <div id="toast" class="toast"></div>
     <script src="script.js"></script>

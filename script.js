@@ -11,13 +11,18 @@ const totalCountEl = document.getElementById('totalCount');
 const goodCountEl = document.getElementById('goodCount');
 const maintainCountEl = document.getElementById('maintainCount');
 const brokenCountEl = document.getElementById('brokenCount');
-const changeHistoryListEl = document.getElementById('changeHistoryList');
-const detailModalEl = document.createElement('div');
+const currentUsernameEl = document.getElementById('currentUsername');
+const currentRoleEl = document.getElementById('currentRole');
+const userManagementSectionEl = document.getElementById('userManagementSection');
+const userFormEl = document.getElementById('userForm');
+const userListEl = document.getElementById('userList');
 const SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
+const detailModalEl = document.createElement('div');
 let devices = [];
-let deviceChangeHistories = [];
 let editingId = null;
+let currentUser = { username: '', role: '' };
+let appUsers = [];
 
 detailModalEl.className = 'device-detail-modal';
 detailModalEl.hidden = true;
@@ -33,6 +38,7 @@ detailModalEl.innerHTML = `
 document.body.appendChild(detailModalEl);
 const closeDetailBtn = detailModalEl.querySelector('#deviceDetailCloseBtn');
 const detailBodyEl = detailModalEl.querySelector('#deviceDetailBody');
+
 function showToast(message) {
   toastEl.textContent = message;
   toastEl.classList.add('show');
@@ -61,23 +67,21 @@ function setupIdleLogout() {
 
   resetIdleTimer();
 }
+
+function sanitize(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
 function formatDate(value) {
   if (!value) return '-';
-
   const normalized = String(value).replace(' ', 'T');
   const d = new Date(normalized);
-
-  if (!Number.isNaN(d.getTime())) {
-    return d.toLocaleString('vi-VN');
-  }
-
-  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
-  if (!match) return '-';
-
-  const [, year, month, day, hour, minute, second] = match;
-  const localDate = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
-
-  return Number.isNaN(localDate.getTime()) ? '-' : localDate.toLocaleString('vi-VN');
+  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleString('vi-VN');
 }
 
 function statusBadge(status) {
@@ -86,58 +90,64 @@ function statusBadge(status) {
   return '<span class="badge badge-broken">Hỏng</span>';
 }
 
-function sanitize(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-.replaceAll("'", '&#39;');
+function canDelete() {
+  return currentUser.role === 'admin';
 }
 
-function formatDeviceSnapshot(rawValue) {
-  if (!rawValue) return '-';
+function updateCurrentUserDisplay() {
+  currentUsernameEl.textContent = currentUser.username || '-';
+  currentRoleEl.textContent = currentUser.role === 'admin' ? 'admin' : 'user';
+}
 
-  let snapshot = rawValue;
-  if (typeof rawValue === 'string') {
-    try {
-      snapshot = JSON.parse(rawValue);
-    } catch (error) {
-      return sanitize(rawValue);
-    }
+function renderUsers() {
+  if (!userListEl) return;
+
+  if (!appUsers.length) {
+    userListEl.innerHTML = '<tr><td colspan="4">Chưa có người dùng.</td></tr>';
+    return;
   }
 
-  if (!snapshot || typeof snapshot !== 'object') return '-';
-  return `
-    <ul class="history-device-info">
-      <li><strong>Tên:</strong> ${sanitize(snapshot.name || '-')}</li>
-      <li><strong>Loại:</strong> ${sanitize(snapshot.type || '-')}</li>
-      <li><strong>User:</strong> ${sanitize(snapshot.user || '-')}</li>
-      <li><strong>Nội dung:</strong> ${sanitize(snapshot.content || '-')}</li>
-      <li><strong>Tình trạng:</strong> ${sanitize(snapshot.status || '-')}</li>
-    </ul>
-  `;
+  userListEl.innerHTML = appUsers.map((user) => {
+    const canDeleteUser = user.id !== currentUser.id;
+    const action = canDeleteUser
+      ? `<button class="action-btn delete-btn" data-action="delete-user" data-id="${user.id}">Xóa</button>`
+      : '<span>-</span>';
+
+    return `
+      <tr>
+        <td>${sanitize(user.username)}</td>
+        <td>${sanitize(user.role)}</td>
+        <td>${formatDate(user.created_at)}</td>
+        <td>${action}</td>
+      </tr>
+    `;
+  }).join('');
 }
 
 function render() {
   updateStats();
 
   if (!devices.length) {
-    listEl.innerHTML = `<tr class="device-empty-row"><td colspan="8">Chưa có dữ liệu thiết bị.</td></tr>`;
+    listEl.innerHTML = `<tr class="device-empty-row"><td colspan="9">Chưa có dữ liệu thiết bị.</td></tr>`;
     return;
   }
 
   listEl.innerHTML = devices
     .map((d, index) => {
-       const image = d.image
+      const image = d.image
         ? `<img src="${sanitize(d.image)}" alt="${sanitize(d.name)}" class="device-image" data-device-id="${d.id}">`
         : '<span>-</span>';
 
+      const deleteBtn = canDelete()
+        ? `<button class="action-btn delete-btn" data-action="delete" data-id="${d.id}">Xóa</button>`
+        : '';
+
       return `
-       <tr style="--row-index:${index};">
+        <tr style="--row-index:${index};">
           <td data-label="Ảnh">${image}</td>
           <td data-label="Tên">${sanitize(d.name)}</td>
           <td data-label="Loại">${sanitize(d.type)}</td>
+          <td data-label="Số lượng">${sanitize(d.quantity ?? 1)}</td>
           <td data-label="User">${sanitize(d.user || '-')}</td>
           <td data-label="Nội dung">${sanitize(d.content || '-')}</td>
           <td data-label="Tình trạng">${statusBadge(sanitize(d.status))}</td>
@@ -146,61 +156,13 @@ function render() {
             <div class="actions">
               <button class="action-btn print-btn" data-action="print" data-id="${d.id}">🖨️</button>
               <button class="action-btn edit-btn" data-action="edit" data-id="${d.id}">Sửa</button>
-              <button class="action-btn delete-btn" data-action="delete" data-id="${d.id}">Xóa</button>
+              ${deleteBtn}
             </div>
           </td>
         </tr>
       `;
     })
     .join('');
-}
-
-function renderChangeHistory() {
-  if (!changeHistoryListEl) return;
-
-  if (!deviceChangeHistories.length) {
-    changeHistoryListEl.innerHTML = '<tr><td colspan="4">Chưa có lịch sử thay đổi.</td></tr>';
-    return;
-  }
-
-  changeHistoryListEl.innerHTML = deviceChangeHistories
-    .map((item) => `
-      <tr>
-        <td>#${sanitize(item.device_id)}</td>
-        <td>${formatDeviceSnapshot(item.old_data)}</td>
-        <td>${formatDeviceSnapshot(item.new_data)}</td>
-        <td>${formatDate(item.changed_at)}</td>
-      </tr>
-    `)
-    .join('');
-}
-
-// function updateStats() {
-//   const goodDeviceCount = devices.filter((d) => d.status === 'Hoạt động tốt').length;
-//   const maintainDeviceCount = devices.filter((d) => d.status === 'Đang bảo trì').length;
-//   const brokenDeviceCount = devices.filter((d) => d.status === 'Hỏng').length;
-
-//   totalCountEl.textContent = String(devices.length);
-//   goodCountEl.textContent = String(goodDeviceCount);
-//   maintainCountEl.textContent = String(maintainDeviceCount);
-//   brokenCountEl.textContent = String(brokenDeviceCount);
-// }
-
-function animateCount(el, target) {
-  const current = Number(el.textContent) || 0;
-  const start = performance.now();
-  const duration = 320;
-
-  function step(timestamp) {
-    const progress = Math.min((timestamp - start) / duration, 1);
-    const value = Math.round(current + ((target - current) * progress));
-    el.textContent = String(value);
-    if (progress < 1) {
-      requestAnimationFrame(step);
-    }
-  }
-
-  requestAnimationFrame(step);
 }
 
 function updateStats() {
@@ -214,29 +176,57 @@ function updateStats() {
   brokenCountEl.textContent = String(brokenCount);
 }
 
+async function checkSession() {
+  const res = await fetch('/api/admin/session');
+  if (!res.ok) throw new Error('Không thể kiểm tra phiên đăng nhập.');
+
+  const data = await res.json();
+  if (!data.authenticated) {
+    window.location.href = '/admin.html';
+    return;
+  }
+
+  currentUser = {
+    id: data.userId,
+    username: data.username || '',
+    role: data.role || 'user',
+  };
+
+  updateCurrentUserDisplay();
+
+  if (currentUser.role === 'admin') {
+    userManagementSectionEl.hidden = false;
+    await fetchUsers();
+  } else {
+    userManagementSectionEl.hidden = true;
+  }
+}
+
 async function fetchDevices() {
   const keyword = searchEl.value.trim();
   const url = keyword ? `/api/devices?search=${encodeURIComponent(keyword)}` : '/api/devices';
   const res = await fetch(url);
-
-  if (!res.ok) {
-    throw new Error('Không thể tải dữ liệu từ server.');
+  if (res.status === 401) {
+    window.location.href = '/admin.html';
+    return;
   }
+  if (!res.ok) throw new Error('Không thể tải dữ liệu từ server.');
 
   devices = await res.json();
   render();
 }
 
-async function fetchDeviceChangeHistory() {
-  if (!changeHistoryListEl) return;
+async function fetchUsers() {
+  if (currentUser.role !== 'admin') return;
 
-  const res = await fetch('/api/device-change-history');
+  const res = await fetch('/api/users');
   if (!res.ok) {
-    throw new Error('Không thể tải lịch sử thay đổi thiết bị.');
+    showToast('Không thể tải danh sách người dùng.');
+    return;
   }
 
-  deviceChangeHistories = await res.json();
-  renderChangeHistory();
+  appUsers = await res.json();
+  renderUsers();
 }
 
 function fileToBase64(file) {
@@ -258,7 +248,9 @@ function resetForm() {
   editingId = null;
   formTitle.textContent = 'Thêm thiết bị';
   submitBtn.textContent = '➕ Thêm thiết bị';
- cancelBtn.hidden = true;
+  cancelBtn.hidden = true;
+  const quantityEl = document.getElementById('quantity');
+  if (quantityEl) quantityEl.value = '1';
 }
 
 function printDevice(device) {
@@ -294,6 +286,7 @@ function printDevice(device) {
       <div class="label">ID</div><div>${sanitize(device.id)}</div>
       <div class="label">Tên thiết bị</div><div>${sanitize(device.name || '-')}</div>
       <div class="label">Loại</div><div>${sanitize(device.type || '-')}</div>
+      <div class="label">Số lượng</div><div>${sanitize(device.quantity ?? 1)}</div>
       <div class="label">Tình trạng</div><div>${sanitize(device.status || '-')}</div>
       <div class="label">User</div><div>${sanitize(device.user || '-')}</div>
       <div class="label">Nội dung</div><div>${sanitize(device.content || '-')}</div>
@@ -308,11 +301,8 @@ function printDevice(device) {
   printWindow.document.write(printableHtml);
   printWindow.document.close();
   printWindow.focus();
-  setTimeout(() => {
-    printWindow.print();
-  }, 150);
+  setTimeout(() => printWindow.print(), 150);
 }
-
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -320,6 +310,7 @@ form.addEventListener('submit', async (event) => {
   const payload = {
     name: document.getElementById('name').value.trim(),
     type: document.getElementById('type').value.trim(),
+    quantity: Number.parseInt(document.getElementById('quantity').value, 10) || 0,
     user: document.getElementById('user').value.trim(),
     content: document.getElementById('content').value.trim(),
     status: document.getElementById('status').value,
@@ -349,7 +340,6 @@ form.addEventListener('submit', async (event) => {
 
   resetForm();
   await fetchDevices();
-  await fetchDeviceChangeHistory();
   showToast(isEdit ? 'Cập nhật thành công.' : 'Thêm mới thành công.');
 });
 
@@ -360,13 +350,13 @@ listEl.addEventListener('click', async (event) => {
   const id = Number(btn.dataset.id);
   const action = btn.dataset.action;
   const device = devices.find((d) => d.id === id);
-
   if (!device) return;
 
   if (action === 'edit') {
     editingId = device.id;
     document.getElementById('name').value = device.name;
     document.getElementById('type').value = device.type;
+    document.getElementById('quantity').value = String(device.quantity ?? 1);
     document.getElementById('user').value = device.user || '';
     document.getElementById('content').value = device.content || '';
     document.getElementById('status').value = device.status;
@@ -376,7 +366,7 @@ listEl.addEventListener('click', async (event) => {
     submitBtn.textContent = '💾 Lưu cập nhật';
     cancelBtn.hidden = false;
     window.scrollTo({ top: 0, behavior: 'smooth' });
-     return;
+    return;
   }
 
   if (action === 'print') {
@@ -385,27 +375,73 @@ listEl.addEventListener('click', async (event) => {
   }
 
   if (action === 'delete') {
+    if (!canDelete()) {
+      showToast('Tài khoản user không có quyền xóa thiết bị.');
+      return;
+    }
     if (!window.confirm(`Bạn có chắc muốn xóa "${device.name}"?`)) return;
 
     const res = await fetch(`/api/devices/${id}`, { method: 'DELETE' });
+    const data = await res.json().catch(() => ({}));
+
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
       showToast(data.error || 'Không thể xóa thiết bị.');
       return;
     }
 
-     if (editingId === id) resetForm();
+    if (editingId === id) resetForm();
     await fetchDevices();
-    await fetchDeviceChangeHistory();
     showToast('Đã xóa thiết bị.');
   }
 });
 
-cancelBtn.addEventListener('click', resetForm);
+userFormEl?.addEventListener('submit', async (event) => {
+  event.preventDefault();
 
-searchEl.addEventListener('input', async () => {
-  await fetchDevices();
+  const payload = {
+    username: document.getElementById('newUsername').value.trim(),
+    password: document.getElementById('newPassword').value.trim(),
+    role: document.getElementById('newRole').value,
+  };
+
+  const res = await fetch('/api/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    showToast(data.error || 'Không thể thêm người dùng.');
+    return;
+  }
+
+  showToast('Đã thêm người dùng thành công.');
+  userFormEl.reset();
+  await fetchUsers();
 });
+
+userListEl?.addEventListener('click', async (event) => {
+  const btn = event.target.closest('button[data-action="delete-user"]');
+  if (!btn) return;
+
+  const userId = Number(btn.dataset.id);
+  if (!Number.isInteger(userId) || userId <= 0) return;
+  if (!window.confirm('Bạn có chắc muốn xóa người dùng này?')) return;
+
+  const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    showToast(data.error || 'Không thể xóa người dùng.');
+    return;
+  }
+
+  showToast('Đã xóa người dùng.');
+  await fetchUsers();
+});
+
+cancelBtn.addEventListener('click', resetForm);
+searchEl.addEventListener('input', async () => { await fetchDevices(); });
 
 exportBtn.addEventListener('click', () => {
   if (!devices.length) {
@@ -422,17 +458,9 @@ exportBtn.addEventListener('click', () => {
 
   const rowsXml = devices
     .map((d) => {
-      const cells = [
-        d.name,
-        d.type,
-        d.status,
-        d.user || '',
-        d.content || '',
-        formatDate(d.created_at),
-      ]
+      const cells = [d.name, d.type, d.quantity ?? 1, d.status, d.user || '', d.content || '', formatDate(d.created_at)]
         .map((value) => `<Cell><Data ss:Type="String">${escapeXml(value)}</Data></Cell>`)
         .join('');
-
       return `<Row>${cells}</Row>`;
     })
     .join('');
@@ -454,12 +482,14 @@ exportBtn.addEventListener('click', () => {
       <Column ss:AutoFitWidth="1" ss:Width="160"/>
       <Column ss:AutoFitWidth="1" ss:Width="140"/>
       <Column ss:AutoFitWidth="1" ss:Width="140"/>
+      <Column ss:AutoFitWidth="1" ss:Width="90"/>
       <Column ss:AutoFitWidth="1" ss:Width="160"/>
       <Column ss:AutoFitWidth="1" ss:Width="260"/>
       <Column ss:AutoFitWidth="1" ss:Width="170"/>
       <Row>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Tên</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Loại</Data></Cell>
+        <Cell ss:StyleID="Header"><Data ss:Type="String">Số lượng</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Tình trạng</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">User</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Nội dung</Data></Cell>
@@ -494,6 +524,7 @@ listEl.addEventListener('mouseover', (event) => {
     <p><strong>ID:</strong> ${sanitize(device.id)}</p>
     <p><strong>Tên thiết bị:</strong> ${sanitize(device.name || '-')}</p>
     <p><strong>Loại:</strong> ${sanitize(device.type || '-')}</p>
+    <p><strong>Số lượng:</strong> ${sanitize(device.quantity ?? 1)}</p>
     <p><strong>Tình trạng:</strong> ${sanitize(device.status || '-')}</p>
     <p><strong>User:</strong> ${sanitize(device.user || '-')}</p>
     <p><strong>Nội dung:</strong> ${sanitize(device.content || '-')}</p>
@@ -507,7 +538,6 @@ listEl.addEventListener('mouseover', (event) => {
 listEl.addEventListener('mouseout', (event) => {
   const imageEl = event.target.closest('.device-image');
   if (!imageEl) return;
-
   const toElement = event.relatedTarget;
   if (toElement && imageEl.contains(toElement)) return;
 
@@ -521,14 +551,14 @@ closeDetailBtn?.addEventListener('click', () => {
 });
 
 detailModalEl.addEventListener('click', (event) => {
-   if (event.target === detailModalEl) {
+  if (event.target === detailModalEl) {
     detailModalEl.hidden = true;
     detailModalEl.style.pointerEvents = '';
   }
 });
 
 window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
+  if (event.key === 'Escape') {
     detailModalEl.hidden = true;
     detailModalEl.style.pointerEvents = '';
   }
@@ -544,9 +574,20 @@ logoutBtn.addEventListener('click', async () => {
   window.location.href = '/admin.html';
 });
 
-Promise.all([fetchDevices(), fetchDeviceChangeHistory()]).catch((err) => {
-  console.error(err);
-  showToast('Không thể tải dữ liệu. Hãy kiểm tra server.');
+window.addEventListener('storage', (event) => {
+  if (event.key === 'devices_sync_ts') {
+    fetchDevices().catch(() => {});
+  }
 });
+
+(async () => {
+  try {
+    await checkSession();
+    await fetchDevices();
+  } catch (err) {
+    console.error(err);
+    showToast('Không thể tải dữ liệu. Hãy kiểm tra server.');
+  }
+})();
 
 setupIdleLogout();

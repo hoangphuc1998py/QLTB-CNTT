@@ -3,8 +3,11 @@ const listEl = document.getElementById('approvedQuoteList');
 const logoutBtn = document.getElementById('logoutBtn');
 const toastEl = document.getElementById('toast');
 const SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+const currentUsernameEl = document.getElementById('currentUsername');
+const currentRoleEl = document.getElementById('currentRole');
 
 let approvedQuotes = [];
+let currentUser = { role: 'user', username: '' };
 
 function showToast(message) {
   toastEl.textContent = message;
@@ -43,7 +46,16 @@ async function checkSession() {
   const data = await res.json();
   if (!data.authenticated) {
     window.location.href = '/admin.html';
+    return;
   }
+
+  currentUser = {
+    username: data.username || '',
+    role: data.role || 'user',
+  };
+
+  if (currentUsernameEl) currentUsernameEl.textContent = currentUser.username || '-';
+  if (currentRoleEl) currentRoleEl.textContent = currentUser.role;
 }
 
 async function fetchApprovedQuotes() {
@@ -74,7 +86,7 @@ function render() {
         </td>
         <td data-label="Thời gian">${formatDate(item.created_at)}</td>
         <td data-label="Hành động">
-          <button class="action-btn delete-btn" data-action="delete" data-id="${item.id}">Xóa</button>
+          ${currentUser.role === 'admin' ? `<button class="action-btn delete-btn" data-action="delete" data-id="${item.id}">Xóa</button>` : '<span>-</span>'}
         </td>
       </tr>
     `)
@@ -141,6 +153,10 @@ formEl.addEventListener('submit', async (event) => {
 listEl.addEventListener('click', async (event) => {
   const btn = event.target.closest('button[data-action="delete"]');
   if (!btn) return;
+  if (currentUser.role !== 'admin') {
+    showToast('Tài khoản user không có quyền xóa.');
+    return;
+  }
 
   const id = Number(btn.dataset.id);
   if (!Number.isInteger(id) || id <= 0) return;
