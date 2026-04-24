@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kho lưu trữ file</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="bg-orb orb-1" aria-hidden="true"></div>
+    <div class="bg-orb orb-2" aria-hidden="true"></div>
+    <div class="bg-orb orb-3" aria-hidden="true"></div>
+
+    <main class="app-shell">
+      <header class="hero">
+        <div class="hero-top">
+          <div>
+            <h1>🗂️ Kho lưu trữ file</h1>
+            <p>Lưu trữ các loại file như PDF, EXE, RAR... và tải lại khi cần.</p>
+            <p><strong>👤 Người dùng đăng nhập:</strong> <span id="currentUsername">-</span> (<span id="currentRole">-</span>)</p>
+          </div>
+          <div class="toolbar-actions">
+            <a class="btn btn-secondary" href="/index.html">⬅️ Quay về trang thiết bị</a>
+            <button type="button" class="btn btn-secondary" id="logoutBtn">Đăng xuất</button>
+          </div>
+        </div>
+      </header>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Thêm file vào kho</h2>
+        </div>
+
+        <form id="fileStorageForm" class="device-form">
+          <div class="form-row">
+            <label for="storageNote">Ghi chú</label>
+            <input id="storageNote" placeholder="Ví dụ: Bộ cài phần mềm kế toán" />
+          </div>
+
+          <div class="form-row">
+            <label for="storageFile">Chọn file</label>
+            <input id="storageFile" type="file" required />
+          </div>
+
+          <div class="btn-group">
+            <button class="btn btn-primary" type="submit">➕ Lưu vào kho</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Danh sách file đã lưu</h2>
+        </div>
+        <div class="table-wrap">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Tên file</th>
+                <th>Loại file</th>
+                <th>Dung lượng</th>
+                <th>Ghi chú</th>
+                <th>Người tải lên</th>
+                <th>Thời gian</th>
+                <th>Hành động</th>
+              </tr>
+            </thead>
+            <tbody id="storedFileList">
+              <tr class="history-empty-row">
+                <td colspan="7">Đang tải dữ liệu...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <script src="file-storage.js"></script>
+  </body>
+</html>

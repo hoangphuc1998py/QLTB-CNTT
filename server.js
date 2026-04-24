@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
+const fs = require('fs');
 const sqlite3 = require('sqlite3').verbose();
 
 const app = express();
@@ -13,9 +14,13 @@ const DEFAULT_USER_PASSWORD = process.env.DEFAULT_USER_PASSWORD || 'user123';
 const SESSION_COOKIE_NAME = 'admin_session';
 const SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const dbPath = path.join(__dirname, 'devices.db');
+const uploadDir = path.join(__dirname, 'uploads');
 const db = new sqlite3.Database(dbPath);
-
 const sessions = new Map();
+
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 db.serialize(() => {
   db.run(`
@@ -31,6 +36,27 @@ db.serialize(() => {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS stored_files (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_name TEXT NOT NULL,
+      mime_type TEXT DEFAULT 'application/octet-stream',
+      note TEXT DEFAULT '',
+      file_data TEXT NOT NULL,
+      file_path TEXT DEFAULT '',
+      file_size INTEGER NOT NULL DEFAULT 0,
+      uploaded_by TEXT DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.all(`PRAGMA table_info(stored_files)`, (err, columns) => {
+    if (err) return;
+    const existingColumns = new Set(columns.map((column) => column.name));
+    if (!existingColumns.has('file_path')) db.run(`ALTER TABLE stored_files ADD COLUMN file_path TEXT DEFAULT ''`);
+    if (!existingColumns.has('file_size')) db.run(`ALTER TABLE stored_files ADD COLUMN file_size INTEGER NOT NULL DEFAULT 0`);
+  });
 
   db.all(`PRAGMA table_info(devices)`, (err, columns) => {
     if (err) return;
@@ -62,6 +88,18 @@ db.serialize(() => {
       scan_file TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
+   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS stored_files (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_name TEXT NOT NULL,
+      mime_type TEXT DEFAULT 'application/octet-stream',
+      note TEXT DEFAULT '',
+      file_data TEXT NOT NULL,
+      uploaded_by TEXT DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
   `);
 
   db.run(`
@@ -87,8 +125,8 @@ db.serialize(() => {
   );
 });
 
-app.use(express.json({ limit: '25mb' }));
-app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 app.use(express.static(__dirname, { index: false }));
 
 app.get('/', (req, res) => {
@@ -555,6 +593,161 @@ app.delete('/api/users/:id', requireAuth, requireAdmin, (req, res) => {
   });
 });
 
+
+// app.get('*', (req, res) => {
+//   res.sendFile(path.join(__dirname, 'index.html'));
+// });
+
+// app.listen(PORT, '192.168.10.41', () => {
+//   console.log(`Server running on http://192.168.10.41:${PORT}`);
+// });
+
+app.get('/api/stored-files', requireAuth, (req, res) => {
+  db.all(
+    `SELECT id, file_name, mime_type, note, file_size, uploaded_by, created_at
+     FROM stored_files
+     ORDER BY id DESC`,
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: 'Không thể tải danh sách file đã lưu.' });
+      return res.json(rows);
+    },
+  );
+});
+
+app.get('/api/stored-files/:id/download', requireAuth, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'ID file không hợp lệ.' });
+  }
+
+  db.get(
+    `SELECT file_name, mime_type, file_data, file_path
+     FROM stored_files
+     WHERE id = ?`,
+    [id],
+    (err, row) => {
+      if (err) return res.status(500).json({ error: 'Không thể đọc file.' });
+      if (!row) return res.status(404).json({ error: 'Không tìm thấy file.' });
+
+      if (row.file_path && fs.existsSync(row.file_path)) {
+        res.setHeader('Content-Type', row.mime_type || 'application/octet-stream');
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(row.file_name || 'download.bin')}"`);
+        return fs.createReadStream(row.file_path).pipe(res);
+      }
+
+      const match = String(row.file_data || '').match(/^data:([^;,]+)?(?:;charset=[^;,]+)?;base64,(.+)$/);
+      if (!match) return res.status(400).json({ error: 'Dữ liệu file không hợp lệ để tải xuống.' });
+
+      const detectedMimeType = match[1] || row.mime_type || 'application/octet-stream';
+      const base64Body = match[2];
+      let fileBuffer = null;
+
+      try {
+        fileBuffer = Buffer.from(base64Body, 'base64');
+      } catch (decodeErr) {
+        return res.status(400).json({ error: 'Không thể giải mã dữ liệu file.' });
+      }
+
+      res.setHeader('Content-Type', detectedMimeType);
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(row.file_name || 'download.bin')}"`);
+      return res.send(fileBuffer);
+    },
+  );
+});
+
+app.post(
+  '/api/stored-files/upload',
+  requireAuth,
+  express.raw({ type: 'application/octet-stream', limit: '500mb' }),
+  (req, res) => {
+    const fileName = decodeURIComponent(String(req.headers['x-file-name'] || '')).trim();
+    const mimeType = decodeURIComponent(String(req.headers['x-file-type'] || 'application/octet-stream')).trim() || 'application/octet-stream';
+    const note = decodeURIComponent(String(req.headers['x-file-note'] || '')).trim();
+    const fileBuffer = req.body;
+
+    if (!fileName || !fileBuffer || !fileBuffer.length) {
+      return res.status(400).json({ error: 'Vui lòng chọn file để lưu trữ.' });
+    }
+
+    const safeFileName = fileName.replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_');
+    const physicalName = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}-${safeFileName}`;
+    const physicalPath = path.join(uploadDir, physicalName);
+
+    fs.writeFile(physicalPath, fileBuffer, (writeErr) => {
+      if (writeErr) return res.status(500).json({ error: 'Không thể ghi file lên máy chủ.' });
+
+      db.run(
+        `INSERT INTO stored_files(file_name, mime_type, note, file_data, file_path, file_size, uploaded_by, created_at)
+         VALUES(?, ?, ?, '', ?, ?, ?, datetime('now', 'localtime'))`,
+        [fileName, mimeType, note, physicalPath, fileBuffer.length, req.session.username || ''],
+        function onInsert(err) {
+          if (err) return res.status(500).json({ error: 'Không thể lưu thông tin file.' });
+          db.get(
+            `SELECT id, file_name, mime_type, note, file_size, uploaded_by, created_at
+             FROM stored_files
+             WHERE id = ?`,
+            [this.lastID],
+            (getErr, row) => {
+              if (getErr) return res.status(500).json({ error: 'Đã lưu nhưng không thể đọc lại file.' });
+              return res.status(201).json(row);
+            },
+          );
+        },
+      );
+    });
+  },
+);
+
+app.post('/api/stored-files', requireAuth, (req, res) => {
+  const fileName = String(req.body.fileName || '').trim();
+  const mimeType = String(req.body.mimeType || 'application/octet-stream').trim() || 'application/octet-stream';
+  const note = String(req.body.note || '').trim();
+  const fileData = String(req.body.fileData || '').trim();
+
+  if (!fileName || !fileData) {
+    return res.status(400).json({ error: 'Vui lòng chọn file để lưu trữ.' });
+  }
+
+  if (!fileData.startsWith('data:')) {
+    return res.status(400).json({ error: 'Dữ liệu file không hợp lệ.' });
+  }
+
+  db.run(
+    `INSERT INTO stored_files(file_name, mime_type, note, file_data, uploaded_by, created_at)
+     VALUES(?, ?, ?, ?, ?, datetime('now', 'localtime'))`,
+    [fileName, mimeType, note, fileData, req.session.username || ''],
+    function onInsert(err) {
+      if (err) return res.status(500).json({ error: 'Không thể lưu file.' });
+      db.get(`SELECT * FROM stored_files WHERE id = ?`, [this.lastID], (getErr, row) => {
+        if (getErr) return res.status(500).json({ error: 'Đã lưu nhưng không thể đọc lại file.' });
+        return res.status(201).json(row);
+      });
+    },
+  );
+});
+
+app.delete('/api/stored-files/:id', requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'ID file không hợp lệ.' });
+  }
+
+  db.get(`SELECT file_path FROM stored_files WHERE id = ?`, [id], (findErr, row) => {
+    if (findErr) return res.status(500).json({ error: 'Không thể kiểm tra file cần xóa.' });
+    if (!row) return res.status(404).json({ error: 'Không tìm thấy file.' });
+
+    db.run(`DELETE FROM stored_files WHERE id = ?`, [id], function onDelete(err) {
+      if (err) return res.status(500).json({ error: 'Không thể xóa file.' });
+      if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy file.' });
+
+      if (row.file_path && fs.existsSync(row.file_path)) {
+        fs.unlink(row.file_path, () => {});
+      }
+
+      return res.status(204).send();
+    });
+  });
+});
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));

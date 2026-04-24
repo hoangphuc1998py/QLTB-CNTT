@@ -279,6 +279,116 @@ select:focus {
   color: #0f172a;
 }
 
+.scan-file-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.file-preview-modal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.46);
+  z-index: 10000;
+}
+
+.file-preview-card {
+  width: min(980px, 96vw);
+  max-height: min(92vh, 860px);
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 10px;
+  padding: 14px;
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #dbe3f2;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.3);
+}
+
+.file-preview-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.file-preview-head h3 {
+  margin: 0;
+}
+
+.file-preview-close {
+  border: none;
+  background: transparent;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.file-preview-meta {
+  margin: 0;
+  color: #334155;
+  font-weight: 600;
+}
+
+.file-preview-body {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f8fafc;
+  min-height: 300px;
+}
+
+.file-preview-body iframe,
+.file-preview-body img {
+  width: 100%;
+  height: 100%;
+  min-height: 54vh;
+  border: 0;
+  object-fit: contain;
+  background: #ffffff;
+}
+
+.file-preview-body p {
+  margin: 0;
+  padding: 20px;
+  color: #334155;
+}
+
+.file-preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.pdf-hover-preview {
+  position: absolute;
+  width: min(480px, 50vw);
+  height: 360px;
+  background: #ffffff;
+  border: 1px solid #dbe3f2;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.24);
+  overflow: hidden;
+  z-index: 10001;
+}
+
+.pdf-hover-preview-head {
+  padding: 8px 10px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  background: #eef4ff;
+  color: #1e3a8a;
+  border-bottom: 1px solid #dbe3f2;
+}
+
+.pdf-hover-preview iframe {
+  width: 100%;
+  height: calc(100% - 37px);
+  border: 0;
+}
+
 .device-detail-modal[hidden] {
   display: none !important;
 }
