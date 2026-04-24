@@ -12,6 +12,7 @@ let approvedQuotes = [];
 let currentUser = { role: 'user', username: '' };
 let previewItem = null;
 let hoverPreviewTimer = null;
+let previewObjectUrl = '';
 
 previewModalEl.className = 'file-preview-modal';
 previewModalEl.hidden = true;
@@ -78,6 +79,51 @@ function fileToBase64(file) {
   });
 }
 
+function normalizeScanFileValue(item) {
+  const rawValue = String(item?.scan_file || '').trim();
+  if (!rawValue) return '';
+  if (/^(data:|blob:|https?:|\/)/i.test(rawValue)) return rawValue;
+
+  if (isPdfFile(item)) {
+    return `data:application/pdf;base64,${rawValue}`;
+  }
+
+  return `data:image/*;base64,${rawValue}`;
+}
+
+function buildPreviewSource(item) {
+  const normalized = normalizeScanFileValue(item);
+  if (!normalized) return '';
+
+  if (normalized.startsWith('data:')) {
+    const commaIndex = normalized.indexOf(',');
+    if (commaIndex <= 0) return '';
+
+    const meta = normalized.slice(5, commaIndex);
+    const base64Body = normalized.slice(commaIndex + 1);
+    const mimeType = (meta.split(';')[0] || 'application/octet-stream').trim();
+
+    try {
+      const byteString = atob(base64Body);
+      const byteArray = new Uint8Array(byteString.length);
+      for (let i = 0; i < byteString.length; i += 1) {
+        byteArray[i] = byteString.charCodeAt(i);
+      }
+      return URL.createObjectURL(new Blob([byteArray], { type: mimeType }));
+    } catch (error) {
+      return '';
+    }
+  }
+
+  return normalized;
+}
+
+function clearPreviewObjectUrl() {
+  if (!previewObjectUrl) return;
+  URL.revokeObjectURL(previewObjectUrl);
+  previewObjectUrl = '';
+}
+
 async function checkSession() {
   const res = await fetch('/api/admin/session');
   if (!res.ok) throw new Error('Không thể kiểm tra phiên đăng nhập.');
@@ -122,7 +168,7 @@ function render() {
         <td data-label="File scan">
           <div class="scan-file-actions">
             <button class="btn btn-primary" type="button" data-action="preview" data-id="${item.id}">👁️ Xem trước</button>
-            <a class="btn btn-secondary" href="${sanitize(item.scan_file)}" download="${sanitize(item.scan_name)}">📥 Tải file scan</a>
+            <button class="btn btn-secondary" type="button" data-action="download" data-id="${item.id}">📥 Tải file scan</button>
           </div>
         </td>
         <td data-label="Thời gian">${formatDate(item.created_at)}</td>
@@ -143,18 +189,30 @@ function isPdfFile(item) {
 function closePreviewModal() {
   previewModalEl.hidden = true;
   previewBodyEl.innerHTML = '';
+  clearPreviewObjectUrl();
   previewItem = null;
 }
 
 function openPreviewModal(item) {
+  clearPreviewObjectUrl();
   previewItem = item;
   previewFileNameEl.textContent = `File: ${item.scan_name || 'scan-file'}`;
+  const source = buildPreviewSource(item);
 
-  if (isPdfFile(item)) {
-    previewBodyEl.innerHTML = `<iframe src="${sanitize(item.scan_file)}" title="${sanitize(item.scan_name || 'PDF preview')}"></iframe>`;
+  if (!source) {
+    previewBodyEl.innerHTML = '<p>Không thể đọc dữ liệu file scan. Vui lòng thử tải file xuống.</p>';
+    previewPrintBtn.hidden = true;
+  } else if (isPdfFile(item)) {
+    previewObjectUrl = source.startsWith('blob:') ? source : '';
+    previewBodyEl.innerHTML = `<iframe title="${sanitize(item.scan_name || 'PDF preview')}"></iframe>`;
+    const iframeEl = previewBodyEl.querySelector('iframe');
+    iframeEl.src = source;
     previewPrintBtn.hidden = false;
-  } else if (String(item.scan_file || '').startsWith('data:image/')) {
-    previewBodyEl.innerHTML = `<img src="${sanitize(item.scan_file)}" alt="${sanitize(item.scan_name || 'Ảnh scan')}">`;
+  } else if (source.startsWith('blob:') || source.startsWith('data:image/') || /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(String(item.scan_name || ''))) {
+    previewObjectUrl = source.startsWith('blob:') ? source : '';
+    previewBodyEl.innerHTML = `<img alt="${sanitize(item.scan_name || 'Ảnh scan')}">`;
+    const imgEl = previewBodyEl.querySelector('img');
+    imgEl.src = source;
     previewPrintBtn.hidden = false;
   } else {
     previewBodyEl.innerHTML = '<p>Không thể xem trước định dạng file này. Bạn có thể tải xuống để mở bằng ứng dụng phù hợp.</p>';
@@ -165,7 +223,9 @@ function openPreviewModal(item) {
 }
 
 function printPreviewFile() {
-  if (!previewItem?.scan_file) return;
+  if (!previewItem) return;
+  const source = buildPreviewSource(previewItem);
+  if (!source) return;
 
   const printWindow = window.open('', '_blank', 'width=1000,height=760');
   if (!printWindow) {
@@ -175,8 +235,8 @@ function printPreviewFile() {
 
   const title = sanitize(previewItem.scan_name || 'scan-file');
   const body = isPdfFile(previewItem)
-    ? `<iframe src="${sanitize(previewItem.scan_file)}" style="border:0;width:100vw;height:100vh"></iframe>`
-    : `<img src="${sanitize(previewItem.scan_file)}" style="max-width:100%;max-height:100%;object-fit:contain" alt="${title}">`;
+    ? `<iframe src="${source}" style="border:0;width:100vw;height:100vh"></iframe>`
+    : `<img src="${source}" style="max-width:100%;max-height:100%;object-fit:contain" alt="${title}">`;
 
   printWindow.document.write(`
     <!doctype html>
@@ -199,12 +259,14 @@ function printPreviewFile() {
 
 function showHoverPreview(item, anchorEl) {
   if (!isPdfFile(item)) return;
+  const source = buildPreviewSource(item);
+  if (!source) return;
 
   const rect = anchorEl.getBoundingClientRect();
   const top = window.scrollY + rect.top;
   const left = window.scrollX + rect.right + 12;
 
-  hoverPreviewFrameEl.src = item.scan_file;
+  hoverPreviewFrameEl.src = source;
   hoverPreviewEl.style.top = `${top}px`;
   hoverPreviewEl.style.left = `${left}px`;
   hoverPreviewEl.hidden = false;
@@ -273,12 +335,58 @@ formEl.addEventListener('submit', async (event) => {
 });
 
 listEl.addEventListener('click', async (event) => {
-  const previewBtn = event.target.closest('button[data-action="preview"]');
+    const previewBtn = event.target.closest('button[data-action="preview"]');
   if (previewBtn) {
     const id = Number(previewBtn.dataset.id);
     const item = approvedQuotes.find((quote) => quote.id === id);
     if (!item) return;
-    openPreviewModal(item);
+   openPreviewModal(item);
+    return;
+  }
+
+  const downloadBtn = event.target.closest('button[data-action="download"]');
+  if (downloadBtn) {
+    const id = Number(downloadBtn.dataset.id);
+    const item = approvedQuotes.find((quote) => quote.id === id);
+    if (!item) return;
+
+    const source = buildPreviewSource(item);
+    if (!source) {
+      showToast('Không thể tải file do dữ liệu scan không hợp lệ.');
+      return;
+    }
+
+    const link = document.createElement('a');
+    link.href = source;
+    link.download = item.scan_name || 'scan-file';
+    link.click();
+
+    if (source.startsWith('blob:')) {
+      setTimeout(() => URL.revokeObjectURL(source), 1200);
+    }
+    return;
+  }
+
+  const downloadBtn = event.target.closest('button[data-action="download"]');
+  if (downloadBtn) {
+    const id = Number(downloadBtn.dataset.id);
+    const item = approvedQuotes.find((quote) => quote.id === id);
+    if (!item) return;
+
+    const source = buildPreviewSource(item);
+    if (!source) {
+      showToast('Không thể tải file do dữ liệu scan không hợp lệ.');
+      return;
+    }
+
+    const link = document.createElement('a');
+    link.href = source;
+    link.download = item.scan_name || 'scan-file';
+    link.click();
+
+    if (source.startsWith('blob:')) {
+      setTimeout(() => URL.revokeObjectURL(source), 1200);
+    }
     return;
   }
 
@@ -334,11 +442,19 @@ previewModalEl.addEventListener('click', (event) => {
 });
 previewPrintBtn.addEventListener('click', printPreviewFile);
 previewDownloadBtn.addEventListener('click', () => {
-  if (!previewItem?.scan_file) return;
+  if (!previewItem) return;
+  const source = buildPreviewSource(previewItem);
+  if (!source) {
+    showToast('Không thể tải file do dữ liệu scan không hợp lệ.');
+    return;
+  }
   const link = document.createElement('a');
-  link.href = previewItem.scan_file;
+  link.href = source;
   link.download = previewItem.scan_name || 'scan-file';
   link.click();
+  if (source.startsWith('blob:')) {
+    setTimeout(() => URL.revokeObjectURL(source), 1200);
+  }
 });
 logoutBtn.addEventListener('click', async () => {
   const res = await fetch('/api/admin/logout', { method: 'POST' });
