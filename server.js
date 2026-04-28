@@ -91,18 +91,6 @@ db.serialize(() => {
    `);
 
   db.run(`
-    CREATE TABLE IF NOT EXISTS stored_files (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      file_name TEXT NOT NULL,
-      mime_type TEXT DEFAULT 'application/octet-stream',
-      note TEXT DEFAULT '',
-      file_data TEXT NOT NULL,
-      uploaded_by TEXT DEFAULT '',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  db.run(`
     CREATE TABLE IF NOT EXISTS app_users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT NOT NULL UNIQUE,
@@ -753,6 +741,6 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-app.listen(PORT, '192.168.10.41', () => {
-  console.log(`Server running on http://192.168.10.41:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`Server running on http://${HOST}:${PORT}`);
 });
