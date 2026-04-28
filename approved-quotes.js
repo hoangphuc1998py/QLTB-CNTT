@@ -5,9 +5,35 @@ const toastEl = document.getElementById('toast');
 const SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const currentUsernameEl = document.getElementById('currentUsername');
 const currentRoleEl = document.getElementById('currentRole');
+const previewModalEl = document.createElement('div');
+const previewBodyId = 'quoteFilePreviewBody';
+const previewTitleId = 'quoteFilePreviewTitle';
+const previewMetaId = 'quoteFilePreviewMeta';
 
 let approvedQuotes = [];
 let currentUser = { role: 'user', username: '' };
+
+previewModalEl.className = 'file-preview-modal';
+previewModalEl.hidden = true;
+previewModalEl.innerHTML = `
+  <div class="file-preview-card" role="dialog" aria-modal="true" aria-label="Xem trước file scan">
+    <div class="file-preview-head">
+      <h3 id="${previewTitleId}">👁 Xem trước file scan</h3>
+      <button type="button" class="file-preview-close" id="quoteFilePreviewCloseBtn" aria-label="Đóng xem trước">✕</button>
+    </div>
+    <p class="file-preview-meta" id="${previewMetaId}"></p>
+    <div class="file-preview-body" id="${previewBodyId}"></div>
+    <div class="file-preview-actions">
+      <button type="button" class="btn btn-secondary" id="quoteFilePreviewCloseBtnBottom">Đóng</button>
+    </div>
+  </div>
+`;
+document.body.appendChild(previewModalEl);
+const previewBodyEl = previewModalEl.querySelector(`#${previewBodyId}`);
+const previewTitleEl = previewModalEl.querySelector(`#${previewTitleId}`);
+const previewMetaEl = previewModalEl.querySelector(`#${previewMetaId}`);
+const previewCloseBtn = previewModalEl.querySelector('#quoteFilePreviewCloseBtn');
+const previewCloseBottomBtn = previewModalEl.querySelector('#quoteFilePreviewCloseBtnBottom');
 
 function showToast(message) {
   toastEl.textContent = message;
@@ -28,6 +54,30 @@ function formatDate(value) {
   if (!value) return '-';
   const date = new Date(String(value).replace(' ', 'T'));
   return Number.isNaN(date.getTime()) ? sanitize(value) : date.toLocaleString('vi-VN');
+}
+
+function isPdfItem(item) {
+  const fileName = String(item.scan_name || '').toLowerCase();
+  const fileContent = String(item.scan_file || '').toLowerCase();
+  return fileName.endsWith('.pdf') || fileContent.startsWith('data:application/pdf');
+}
+
+function closePreviewModal() {
+  previewModalEl.hidden = true;
+  previewBodyEl.innerHTML = '';
+}
+
+function openPreviewModal(item) {
+  const fileUrl = String(item.scan_file || '').trim();
+  if (!fileUrl || !isPdfItem(item)) {
+    showToast('Chỉ hỗ trợ xem trước file PDF.');
+    return;
+  }
+
+  previewTitleEl.textContent = '👁 Xem trước PDF báo giá';
+  previewMetaEl.textContent = item.scan_name ? `File: ${item.scan_name}` : 'PDF scan';
+  previewBodyEl.innerHTML = `<iframe src="${sanitize(fileUrl)}" title="${sanitize(item.scan_name || 'PDF scan')}"></iframe>`;
+  previewModalEl.hidden = false;
 }
 
 function fileToBase64(file) {
@@ -80,9 +130,12 @@ function render() {
     .map((item) => `
       <tr>
         <td data-label="Mã báo giá">${sanitize(item.quote_code)}</td>
-        <td data-label="Ghi chú">${sanitize(item.note || '-')}</td>
+           <td data-label="Ghi chú">${sanitize(item.note || '-')}</td>
         <td data-label="File scan">
-          <a class="btn btn-secondary" href="${sanitize(item.scan_file)}" download="${sanitize(item.scan_name)}">📥 Tải file scan</a>
+          <div class="scan-file-actions">
+            ${isPdfItem(item) ? `<button type="button" class="btn btn-secondary" data-action="preview" data-id="${item.id}">👁 Xem trước PDF</button>` : ''}
+            <a class="btn btn-secondary" href="${sanitize(item.scan_file)}" download="${sanitize(item.scan_name)}">📥 Tải file scan</a>
+          </div>
         </td>
         <td data-label="Thời gian">${formatDate(item.created_at)}</td>
         <td data-label="Hành động">
@@ -151,6 +204,18 @@ formEl.addEventListener('submit', async (event) => {
 });
 
 listEl.addEventListener('click', async (event) => {
+  const previewBtn = event.target.closest('button[data-action="preview"]');
+  if (previewBtn) {
+    const id = Number(previewBtn.dataset.id);
+    const item = approvedQuotes.find((quote) => Number(quote.id) === id);
+    if (!item) {
+      showToast('Không tìm thấy file để xem trước.');
+      return;
+    }
+    openPreviewModal(item);
+    return;
+  }
+
   const btn = event.target.closest('button[data-action="delete"]');
   if (!btn) return;
   if (currentUser.role !== 'admin') {
@@ -180,6 +245,15 @@ logoutBtn.addEventListener('click', async () => {
     return;
   }
   window.location.href = '/admin.html';
+});
+
+previewCloseBtn.addEventListener('click', closePreviewModal);
+previewCloseBottomBtn.addEventListener('click', closePreviewModal);
+previewModalEl.addEventListener('click', (event) => {
+  if (event.target === previewModalEl) closePreviewModal();
+});
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !previewModalEl.hidden) closePreviewModal();
 });
 
 (async () => {
