@@ -1141,6 +1141,102 @@ td img {
   }
 }
 
+@media (max-width: 1024px) {
+  .file-storage-page .hero-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .file-storage-page .toolbar-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .file-storage-page .toolbar-actions .btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .file-storage-page .table-wrap {
+    overflow: visible;
+  }
+
+  .file-storage-page .history-table {
+    min-width: 100%;
+  }
+
+  .file-storage-page .history-table thead {
+    display: none;
+  }
+
+  .file-storage-page .history-table,
+  .file-storage-page .history-table tbody,
+  .file-storage-page .history-table tr,
+  .file-storage-page .history-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .file-storage-page .history-table tr {
+    border: 1px solid #dfe7f5;
+    border-radius: 12px;
+    background: #fff;
+    margin-bottom: 10px;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+  }
+
+  .file-storage-page .history-table td {
+    white-space: normal;
+    border-bottom: 1px dashed #e6ecf7;
+    padding: 10px;
+  }
+
+  .file-storage-page .history-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .file-storage-page .history-table td:last-child {
+    border-bottom: none;
+  }
+
+  .file-storage-page .history-table .actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .file-storage-page .history-table .actions .btn,
+  .file-storage-page .history-table .actions .action-btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .file-storage-page .history-table .history-empty-row {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .file-storage-page .history-table .history-empty-row td {
+    display: table-cell;
+    text-align: center;
+    border-bottom: none;
+  }
+
+  .file-storage-page .history-table .history-empty-row td::before {
+    content: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation: none !important;
