@@ -473,6 +473,29 @@ select:focus {
   flex-wrap: wrap;
 }
 
+.file-storage-page .hero-top > div:first-child {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+.file-storage-page .toolbar-actions {
+  flex: 0 1 420px;
+  justify-content: flex-end;
+}
+
+.file-storage-page .toolbar-actions .btn {
+  white-space: normal;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.file-storage-page .history-table th,
+.file-storage-page .history-table td {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
 #search {
   flex: 1;
   min-width: 280px;
@@ -1136,8 +1159,286 @@ td img {
      height: 44px;
   }
 
+ @@ -1030,51 +1030,51 @@ td img {
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .history-table td:last-child {
+    border-bottom: none;
+  }
+
+  .history-table .history-empty-row {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .history-table .history-empty-row td {
+    display: table-cell;
+    border-bottom: none;
+    text-align: center;
+  }
+
+  .history-table .history-empty-row td::before {
+    content: none;
+  }
+}
+
+@media (max-width: 480px) {␍␊
+@media (max-width: 480px) {␊
+  body {
+    font-size: 14px;
+  }
+
+  .hero h1 {
+    font-size: 1.25rem;
+  }
+
+  .hero p {
+    font-size: 0.92rem;
+  }
+
+   .pulse-tag {
+    font-size: 0.75rem;
+  }
+
+  .app-shell {
+    width: 95vw;
+    margin: 12px auto;
+    gap: 12px;
+  }
+
+  .hero {
+    padding: 14px;
+    border-radius: 12px;
+@@ -1114,37 +1114,133 @@ td img {
+  .btn {
+    width: 100%;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .device-table .actions {
+    grid-template-columns: 1fr;
+  }
+
+  .action-btn {
+    padding: 6px 8px;
+    font-size: 0.8rem;
+    min-height: 36px;
+  }
+
+
+  td img {
+    width: 44px;
+     height: 44px;
+  }
+
+ .history-device-info {
+    padding-left: 14px;
+  }
+}
+
+@media (max-width: 1280px) {
+  .file-storage-page .hero-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .file-storage-page .toolbar-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .file-storage-page .toolbar-actions .btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .file-storage-page .table-wrap {
+    overflow: visible;
+  }
+
+  .file-storage-page .history-table {
+    min-width: 100%;
+  }
+
+  .file-storage-page .history-table thead {
+    display: none;
+  }
+
+  .file-storage-page .history-table,
+  .file-storage-page .history-table tbody,
+  .file-storage-page .history-table tr,
+  .file-storage-page .history-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .file-storage-page .history-table tr {
+    border: 1px solid #dfe7f5;
+    border-radius: 12px;
+    background: #fff;
+    margin-bottom: 10px;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+  }
+
+  .file-storage-page .history-table td {
+    white-space: normal;
+    border-bottom: 1px dashed #e6ecf7;
+    padding: 10px;
+  }
+
+  .file-storage-page .history-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .file-storage-page .history-table td:last-child {
+    border-bottom: none;
+  }
+
+  .file-storage-page .history-table .actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .file-storage-page .history-table .actions .btn,
+  .file-storage-page .history-table .actions .action-btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .file-storage-page .history-table .history-empty-row {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .file-storage-page .history-table .history-empty-row td {
+    display: table-cell;
+    text-align: center;
+    border-bottom: none;
+  }
+
+  .file-storage-page .history-table .history-empty-row td::before {
+    content: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
   .history-device-info {
     padding-left: 14px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .file-storage-page .hero-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .file-storage-page .toolbar-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .file-storage-page .toolbar-actions .btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .file-storage-page .table-wrap {
+    overflow: visible;
+  }
+
+  .file-storage-page .history-table {
+    min-width: 100%;
+  }
+
+  .file-storage-page .history-table thead {
+    display: none;
+  }
+
+  .file-storage-page .history-table,
+  .file-storage-page .history-table tbody,
+  .file-storage-page .history-table tr,
+  .file-storage-page .history-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .file-storage-page .history-table tr {
+    border: 1px solid #dfe7f5;
+    border-radius: 12px;
+    background: #fff;
+    margin-bottom: 10px;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+  }
+
+  .file-storage-page .history-table td {
+    white-space: normal;
+    border-bottom: 1px dashed #e6ecf7;
+    padding: 10px;
+  }
+
+  .file-storage-page .history-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .file-storage-page .history-table td:last-child {
+    border-bottom: none;
+  }
+
+  .file-storage-page .history-table .actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .file-storage-page .history-table .actions .btn,
+  .file-storage-page .history-table .actions .action-btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .file-storage-page .history-table .history-empty-row {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .file-storage-page .history-table .history-empty-row td {
+    display: table-cell;
+    text-align: center;
+    border-bottom: none;
+  }
+
+  .file-storage-page .history-table .history-empty-row td::before {
+    content: none;
   }
 }
 
