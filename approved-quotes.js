@@ -2,7 +2,6 @@ const formEl = document.getElementById('approvedQuoteForm');
 const listEl = document.getElementById('approvedQuoteList');
 const logoutBtn = document.getElementById('logoutBtn');
 const toastEl = document.getElementById('toast');
-const SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const currentUsernameEl = document.getElementById('currentUsername');
 const currentRoleEl = document.getElementById('currentRole');
 const previewModalEl = document.createElement('div');
@@ -146,29 +145,6 @@ function render() {
     .join('');
 }
 
-function setupIdleLogout() {
-  let idleTimer = null;
-
-  const logoutForIdle = async () => {
-    await fetch('/api/admin/logout', { method: 'POST' }).catch(() => {});
-    showToast('Phiên đăng nhập đã hết hạn do không thao tác trong 5 phút.');
-    setTimeout(() => {
-      window.location.href = '/admin.html';
-    }, 400);
-  };
-
-  const resetIdleTimer = () => {
-    if (idleTimer) clearTimeout(idleTimer);
-    idleTimer = setTimeout(logoutForIdle, SESSION_IDLE_TIMEOUT_MS);
-  };
-
-  ['click', 'keydown', 'mousemove', 'scroll', 'touchstart'].forEach((eventName) => {
-    window.addEventListener(eventName, resetIdleTimer, { passive: true });
-  });
-
-  resetIdleTimer();
-}
-
 formEl.addEventListener('submit', async (event) => {
   event.preventDefault();
 
@@ -265,5 +241,3 @@ window.addEventListener('keydown', (event) => {
     showToast(error.message || 'Không thể tải dữ liệu báo giá đã duyệt.');
   }
 })();
-
-setupIdleLogout();

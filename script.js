@@ -5,6 +5,10 @@ const cancelBtn = document.getElementById('cancelBtn');
 const listEl = document.getElementById('list');
 const searchEl = document.getElementById('search');
 const exportBtn = document.getElementById('exportBtn');
+const importExcelInput = document.getElementById('importExcelInput');
+const paginationInfoEl = document.getElementById('paginationInfo');
+const paginationControlsEl = document.getElementById('paginationControls');
+const pageSizeSelectEl = document.getElementById('pageSizeSelect');
 const toastEl = document.getElementById('toast');
 const logoutBtn = document.getElementById('logoutBtn');
 const totalCountEl = document.getElementById('totalCount');
@@ -16,13 +20,14 @@ const currentRoleEl = document.getElementById('currentRole');
 const userManagementSectionEl = document.getElementById('userManagementSection');
 const userFormEl = document.getElementById('userForm');
 const userListEl = document.getElementById('userList');
-const SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 const detailModalEl = document.createElement('div');
 let devices = [];
 let editingId = null;
 let currentUser = { username: '', role: '' };
 let appUsers = [];
+let currentPage = 1;
+let pageSize = Number.parseInt(pageSizeSelectEl?.value, 10) || 10;
 
 detailModalEl.className = 'device-detail-modal';
 detailModalEl.hidden = true;
@@ -39,33 +44,62 @@ document.body.appendChild(detailModalEl);
 const closeDetailBtn = detailModalEl.querySelector('#deviceDetailCloseBtn');
 const detailBodyEl = detailModalEl.querySelector('#deviceDetailBody');
 
+
+function setupSideAdSliders() {
+  document.querySelectorAll('[data-side-ad-slider]').forEach((slider) => {
+    const slides = Array.from(slider.querySelectorAll('.side-ad-slide'));
+    const dotsEl = slider.querySelector('.side-ad-dots');
+    const intervalMs = Number.parseInt(slider.dataset.sliderInterval, 10) || 5000;
+    let activeIndex = Math.max(0, slides.findIndex((slide) => slide.classList.contains('active')));
+    let timer = null;
+
+    if (slides.length <= 1) return;
+
+    const dots = slides.map((_, index) => {
+      const dot = document.createElement('span');
+      dot.className = 'side-ad-dot';
+      dot.dataset.slideIndex = String(index);
+      dotsEl?.appendChild(dot);
+      return dot;
+    });
+
+    const showSlide = (nextIndex) => {
+      activeIndex = (nextIndex + slides.length) % slides.length;
+      slides.forEach((slide, index) => slide.classList.toggle('active', index === activeIndex));
+      dots.forEach((dot, index) => dot.classList.toggle('active', index === activeIndex));
+    };
+
+    const start = () => {
+      if (timer) clearInterval(timer);
+      timer = setInterval(() => showSlide(activeIndex + 1), intervalMs);
+    };
+
+    slider.querySelectorAll('[data-slider-action]').forEach((button) => {
+      button.addEventListener('click', () => {
+        showSlide(activeIndex + (button.dataset.sliderAction === 'prev' ? -1 : 1));
+        start();
+      });
+    });
+
+    dots.forEach((dot) => {
+      dot.addEventListener('click', () => {
+        showSlide(Number.parseInt(dot.dataset.slideIndex, 10) || 0);
+        start();
+      });
+    });
+
+    slider.addEventListener('mouseenter', () => { if (timer) clearInterval(timer); });
+    slider.addEventListener('mouseleave', start);
+
+    showSlide(activeIndex);
+    start();
+  });
+}
+
 function showToast(message) {
   toastEl.textContent = message;
   toastEl.classList.add('show');
   setTimeout(() => toastEl.classList.remove('show'), 2200);
-}
-
-function setupIdleLogout() {
-  let idleTimer = null;
-
-  const logoutForIdle = async () => {
-    await fetch('/api/admin/logout', { method: 'POST' }).catch(() => {});
-    showToast('Phiên đăng nhập đã hết hạn do không thao tác trong 5 phút.');
-    setTimeout(() => {
-      window.location.href = '/admin.html';
-    }, 400);
-  };
-
-  const resetIdleTimer = () => {
-    if (idleTimer) clearTimeout(idleTimer);
-    idleTimer = setTimeout(logoutForIdle, SESSION_IDLE_TIMEOUT_MS);
-  };
-
-  ['click', 'keydown', 'mousemove', 'scroll', 'touchstart'].forEach((eventName) => {
-    window.addEventListener(eventName, resetIdleTimer, { passive: true });
-  });
-
-  resetIdleTimer();
 }
 
 function sanitize(value) {
@@ -108,31 +142,96 @@ function renderUsers() {
   }
 
   userListEl.innerHTML = appUsers.map((user) => {
-    const canDeleteUser = user.id !== currentUser.id;
-    const action = canDeleteUser
-      ? `<button class="action-btn delete-btn" data-action="delete-user" data-id="${user.id}">Xóa</button>`
+    const canManageUser = user.id !== currentUser.id;
+    const roleCell = canManageUser
+      ? `
+        <select class="user-role-select" data-user-id="${user.id}" aria-label="Đổi quyền cho ${sanitize(user.username)}">
+          <option value="user" ${user.role === 'user' ? 'selected' : ''}>User</option>
+          <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+        </select>
+      `
+      : `${sanitize(user.role)} <span class="current-user-tag">Bạn</span>`;
+
+    const action = canManageUser
+      ? `
+        <button class="action-btn edit-btn" data-action="update-user-role" data-id="${user.id}">Lưu quyền</button>
+        <button class="action-btn delete-btn" data-action="delete-user" data-id="${user.id}">Xóa</button>
+      `
       : '<span>-</span>';
 
     return `
       <tr>
         <td>${sanitize(user.username)}</td>
-        <td>${sanitize(user.role)}</td>
+        <td>${roleCell}</td>
         <td>${formatDate(user.created_at)}</td>
-        <td>${action}</td>
+        <td><div class="actions">${action}</div></td>
       </tr>
     `;
   }).join('');
 }
 
-function render() {
-  updateStats();
+function getTotalPages() {
+  return Math.max(1, Math.ceil(devices.length / pageSize));
+}
 
-  if (!devices.length) {
-    listEl.innerHTML = `<tr class="device-empty-row"><td colspan="9">Chưa có dữ liệu thiết bị.</td></tr>`;
+function getVisiblePageNumbers(totalPages) {
+  const maxVisiblePages = 5;
+  const halfWindow = Math.floor(maxVisiblePages / 2);
+  let start = Math.max(1, currentPage - halfWindow);
+  const end = Math.min(totalPages, start + maxVisiblePages - 1);
+
+  start = Math.max(1, end - maxVisiblePages + 1);
+
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+}
+
+function renderPagination() {
+  if (!paginationInfoEl || !paginationControlsEl) return;
+
+  const totalItems = devices.length;
+  const totalPages = getTotalPages();
+  currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+
+  if (!totalItems) {
+    paginationInfoEl.textContent = 'Hiển thị 0 thiết bị';
+    paginationControlsEl.innerHTML = '';
     return;
   }
 
-  listEl.innerHTML = devices
+  const startItem = (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalItems);
+  paginationInfoEl.textContent = `Hiển thị ${startItem}-${endItem} / ${totalItems} thiết bị`;
+
+  const pageButtons = getVisiblePageNumbers(totalPages)
+    .map((pageNumber) => `
+      <button
+        type="button"
+        class="pagination-btn ${pageNumber === currentPage ? 'active' : ''}"
+        data-page="${pageNumber}"
+        aria-current="${pageNumber === currentPage ? 'page' : 'false'}"
+      >${pageNumber}</button>
+    `)
+    .join('');
+
+  paginationControlsEl.innerHTML = `
+    <button type="button" class="pagination-btn" data-page-action="prev" ${currentPage === 1 ? 'disabled' : ''}>‹ Trước</button>
+    ${pageButtons}
+    <button type="button" class="pagination-btn" data-page-action="next" ${currentPage === totalPages ? 'disabled' : ''}>Sau ›</button>
+  `;
+}
+
+function render() {
+  updateStats();
+  renderPagination();
+
+  if (!devices.length) {
+    listEl.innerHTML = `<tr class="device-empty-row"><td colspan="10">Chưa có dữ liệu thiết bị.</td></tr>`;
+    return;
+  }
+
+  const pageDevices = devices.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  listEl.innerHTML = pageDevices
     .map((d, index) => {
       const image = d.image
         ? `<img src="${sanitize(d.image)}" alt="${sanitize(d.name)}" class="device-image" data-device-id="${d.id}">`
@@ -147,6 +246,7 @@ function render() {
           <td data-label="Ảnh">${image}</td>
           <td data-label="Tên">${sanitize(d.name)}</td>
           <td data-label="Loại">${sanitize(d.type)}</td>
+          <td data-label="Khu vực">${sanitize(d.area || '-')}</td>
           <td data-label="Số lượng">${sanitize(d.quantity ?? 1)}</td>
           <td data-label="User">${sanitize(d.user || '-')}</td>
           <td data-label="Nội dung">${sanitize(d.content || '-')}</td>
@@ -229,6 +329,59 @@ async function fetchUsers() {
   renderUsers();
 }
 
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      resolve('');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Không thể đọc file Excel.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function importDevicesFromExcel(file) {
+  if (!file) return;
+
+  const allowedExtensions = /\.(xlsx|xls|csv)$/i;
+  if (!allowedExtensions.test(file.name)) {
+    showToast('Vui lòng chọn file Excel .xlsx, .xls hoặc .csv.');
+    importExcelInput.value = '';
+    return;
+  }
+
+  try {
+    showToast('Đang import dữ liệu Excel...');
+    const dataUrl = await fileToDataUrl(file);
+    const res = await fetch('/api/devices/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileName: file.name, fileData: dataUrl }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(data.error || 'Không thể import file Excel.');
+      return;
+    }
+
+    currentPage = 1;
+    await fetchDevices();
+    localStorage.setItem('devices_sync_ts', String(Date.now()));
+    const skippedMessage = data.skipped ? ` Bỏ qua ${data.skipped} dòng lỗi.` : '';
+    showToast(`Đã import ${data.inserted || 0} thiết bị.${skippedMessage}`);
+  } catch (err) {
+    console.error(err);
+    showToast('Không thể đọc hoặc import file Excel.');
+  } finally {
+    importExcelInput.value = '';
+  }
+}
+
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     if (!file) {
@@ -286,6 +439,7 @@ function printDevice(device) {
       <div class="label">ID</div><div>${sanitize(device.id)}</div>
       <div class="label">Tên thiết bị</div><div>${sanitize(device.name || '-')}</div>
       <div class="label">Loại</div><div>${sanitize(device.type || '-')}</div>
+      <div class="label">Khu vực</div><div>${sanitize(device.area || '-')}</div>
       <div class="label">Số lượng</div><div>${sanitize(device.quantity ?? 1)}</div>
       <div class="label">Tình trạng</div><div>${sanitize(device.status || '-')}</div>
       <div class="label">User</div><div>${sanitize(device.user || '-')}</div>
@@ -310,6 +464,7 @@ form.addEventListener('submit', async (event) => {
   const payload = {
     name: document.getElementById('name').value.trim(),
     type: document.getElementById('type').value.trim(),
+    area: document.getElementById('area').value.trim(),
     quantity: Number.parseInt(document.getElementById('quantity').value, 10) || 0,
     user: document.getElementById('user').value.trim(),
     content: document.getElementById('content').value.trim(),
@@ -338,6 +493,7 @@ form.addEventListener('submit', async (event) => {
     return;
   }
 
+  if (!isEdit) currentPage = 1;
   resetForm();
   await fetchDevices();
   showToast(isEdit ? 'Cập nhật thành công.' : 'Thêm mới thành công.');
@@ -356,6 +512,7 @@ listEl.addEventListener('click', async (event) => {
     editingId = device.id;
     document.getElementById('name').value = device.name;
     document.getElementById('type').value = device.type;
+    document.getElementById('area').value = device.area || '';
     document.getElementById('quantity').value = String(device.quantity ?? 1);
     document.getElementById('user').value = device.user || '';
     document.getElementById('content').value = device.content || '';
@@ -422,26 +579,80 @@ userFormEl?.addEventListener('submit', async (event) => {
 });
 
 userListEl?.addEventListener('click', async (event) => {
-  const btn = event.target.closest('button[data-action="delete-user"]');
+  const btn = event.target.closest('button[data-action]');
   if (!btn) return;
 
   const userId = Number(btn.dataset.id);
+  const action = btn.dataset.action;
   if (!Number.isInteger(userId) || userId <= 0) return;
-  if (!window.confirm('Bạn có chắc muốn xóa người dùng này?')) return;
 
-  const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    showToast(data.error || 'Không thể xóa người dùng.');
+  if (action === 'update-user-role') {
+    const roleSelect = userListEl.querySelector(`.user-role-select[data-user-id="${userId}"]`);
+    const role = roleSelect?.value === 'admin' ? 'admin' : 'user';
+
+    const res = await fetch(`/api/users/${userId}/role`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(data.error || 'Không thể cập nhật quyền người dùng.');
+      await fetchUsers();
+      return;
+    }
+
+    showToast(`Đã cập nhật ${data.username || 'người dùng'} thành ${data.role}.`);
+    await fetchUsers();
     return;
   }
 
-  showToast('Đã xóa người dùng.');
-  await fetchUsers();
+  if (action === 'delete-user') {
+    if (!window.confirm('Bạn có chắc muốn xóa người dùng này?')) return;
+
+    const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(data.error || 'Không thể xóa người dùng.');
+      return;
+    }
+
+    showToast('Đã xóa người dùng.');
+    await fetchUsers();
+  }
 });
 
 cancelBtn.addEventListener('click', resetForm);
-searchEl.addEventListener('input', async () => { await fetchDevices(); });
+searchEl.addEventListener('input', async () => {
+  currentPage = 1;
+  await fetchDevices();
+});
+
+pageSizeSelectEl?.addEventListener('change', () => {
+  pageSize = Number.parseInt(pageSizeSelectEl.value, 10) || 10;
+  currentPage = 1;
+  render();
+});
+
+paginationControlsEl?.addEventListener('click', (event) => {
+  const btn = event.target.closest('button');
+  if (!btn || btn.disabled) return;
+
+  const totalPages = getTotalPages();
+  if (btn.dataset.pageAction === 'prev') {
+    currentPage = Math.max(1, currentPage - 1);
+  } else if (btn.dataset.pageAction === 'next') {
+    currentPage = Math.min(totalPages, currentPage + 1);
+  } else if (btn.dataset.page) {
+    currentPage = Number.parseInt(btn.dataset.page, 10) || 1;
+  }
+
+  render();
+});
+
+importExcelInput?.addEventListener('change', async () => {
+  await importDevicesFromExcel(importExcelInput.files[0]);
+});
 
 exportBtn.addEventListener('click', () => {
   if (!devices.length) {
@@ -458,7 +669,7 @@ exportBtn.addEventListener('click', () => {
 
   const rowsXml = devices
     .map((d) => {
-      const cells = [d.name, d.type, d.quantity ?? 1, d.status, d.user || '', d.content || '', formatDate(d.created_at)]
+      const cells = [d.name, d.type, d.area || '', d.quantity ?? 1, d.status, d.user || '', d.content || '', formatDate(d.created_at)]
         .map((value) => `<Cell><Data ss:Type="String">${escapeXml(value)}</Data></Cell>`)
         .join('');
       return `<Row>${cells}</Row>`;
@@ -482,6 +693,7 @@ exportBtn.addEventListener('click', () => {
       <Column ss:AutoFitWidth="1" ss:Width="160"/>
       <Column ss:AutoFitWidth="1" ss:Width="140"/>
       <Column ss:AutoFitWidth="1" ss:Width="140"/>
+      <Column ss:AutoFitWidth="1" ss:Width="150"/>
       <Column ss:AutoFitWidth="1" ss:Width="90"/>
       <Column ss:AutoFitWidth="1" ss:Width="160"/>
       <Column ss:AutoFitWidth="1" ss:Width="260"/>
@@ -489,6 +701,7 @@ exportBtn.addEventListener('click', () => {
       <Row>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Tên</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Loại</Data></Cell>
+        <Cell ss:StyleID="Header"><Data ss:Type="String">Khu vực</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Số lượng</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Tình trạng</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">User</Data></Cell>
@@ -524,6 +737,7 @@ listEl.addEventListener('mouseover', (event) => {
     <p><strong>ID:</strong> ${sanitize(device.id)}</p>
     <p><strong>Tên thiết bị:</strong> ${sanitize(device.name || '-')}</p>
     <p><strong>Loại:</strong> ${sanitize(device.type || '-')}</p>
+    <p><strong>Khu vực:</strong> ${sanitize(device.area || '-')}</p>
     <p><strong>Số lượng:</strong> ${sanitize(device.quantity ?? 1)}</p>
     <p><strong>Tình trạng:</strong> ${sanitize(device.status || '-')}</p>
     <p><strong>User:</strong> ${sanitize(device.user || '-')}</p>
@@ -574,6 +788,8 @@ logoutBtn.addEventListener('click', async () => {
   window.location.href = '/admin.html';
 });
 
+setupSideAdSliders();
+
 window.addEventListener('storage', (event) => {
   if (event.key === 'devices_sync_ts') {
     fetchDevices().catch(() => {});
@@ -589,5 +805,3 @@ window.addEventListener('storage', (event) => {
     showToast('Không thể tải dữ liệu. Hãy kiểm tra server.');
   }
 })();
-
-setupIdleLogout();

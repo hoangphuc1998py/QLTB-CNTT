@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
+const zlib = require('zlib');
 const fs = require('fs');
 const sqlite3 = require('sqlite3').verbose();
 
@@ -12,7 +13,6 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 const DEFAULT_USER_USERNAME = process.env.DEFAULT_USER_USERNAME || 'user';
 const DEFAULT_USER_PASSWORD = process.env.DEFAULT_USER_PASSWORD || 'user123';
 const SESSION_COOKIE_NAME = 'admin_session';
-const SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const dbPath = path.join(__dirname, 'devices.db');
 const uploadDir = path.join(__dirname, 'uploads');
 const db = new sqlite3.Database(dbPath);
@@ -28,6 +28,7 @@ db.serialize(() => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       type TEXT NOT NULL,
+      area TEXT DEFAULT '',
       status TEXT NOT NULL,
       quantity INTEGER NOT NULL DEFAULT 1,
       user TEXT DEFAULT '',
@@ -62,6 +63,7 @@ db.serialize(() => {
     if (err) return;
     const existingColumns = new Set(columns.map((column) => column.name));
 
+    if (!existingColumns.has('area')) db.run(`ALTER TABLE devices ADD COLUMN area TEXT DEFAULT ''`);
     if (!existingColumns.has('quantity')) db.run(`ALTER TABLE devices ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1`);
     if (!existingColumns.has('user')) db.run(`ALTER TABLE devices ADD COLUMN user TEXT DEFAULT ''`);
     if (!existingColumns.has('content')) db.run(`ALTER TABLE devices ADD COLUMN content TEXT DEFAULT ''`);
@@ -138,21 +140,7 @@ function getSessionToken(req) {
 
 function getSession(token) {
   if (!token || !sessions.has(token)) return null;
-
-  const session = sessions.get(token);
-  if (Date.now() - session.lastActivityAt > SESSION_IDLE_TIMEOUT_MS) {
-    sessions.delete(token);
-    return null;
-  }
-
-  return session;
-}
-
-function touchSession(token) {
-  const session = sessions.get(token);
-  if (!session) return;
-  session.lastActivityAt = Date.now();
-  sessions.set(token, session);
+  return sessions.get(token);
 }
 
 function requireAuth(req, res, next) {
@@ -163,7 +151,6 @@ function requireAuth(req, res, next) {
     return res.status(401).json({ error: 'Bạn cần đăng nhập.' });
   }
 
-  touchSession(token);
   req.session = session;
   return next();
 }
@@ -173,6 +160,306 @@ function requireAdmin(req, res, next) {
     return res.status(403).json({ error: 'Bạn không có quyền thực hiện thao tác xóa.' });
   }
   return next();
+}
+
+
+const DEVICE_STATUS_VALUES = ['Hoạt động tốt', 'Đang bảo trì', 'Hỏng'];
+
+const EXCEL_HEADER_MAP = {
+  'ten thiet bi': 'name',
+  'ten': 'name',
+  name: 'name',
+  'device name': 'name',
+  'loai': 'type',
+  type: 'type',
+  'device type': 'type',
+  'khu vuc': 'area',
+  area: 'area',
+  'so luong': 'quantity',
+  quantity: 'quantity',
+  user: 'user',
+  'nguoi dung': 'user',
+  'noi dung': 'content',
+  content: 'content',
+  'tinh trang': 'status',
+  status: 'status',
+};
+
+function removeVietnameseMarks(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+}
+
+function normalizeHeader(value) {
+  return removeVietnameseMarks(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function normalizeStatus(value) {
+  const cleanValue = String(value || '').trim();
+  if (!cleanValue) return 'Hoạt động tốt';
+  const normalized = normalizeHeader(cleanValue);
+  if (['hoat dong tot', 'tot', 'good', 'ok', 'dang su dung'].includes(normalized)) return 'Hoạt động tốt';
+  if (['dang bao tri', 'bao tri', 'maintenance'].includes(normalized)) return 'Đang bảo trì';
+  if (['hong', 'broken', 'loi', 'hu'].includes(normalized)) return 'Hỏng';
+  return cleanValue;
+}
+
+function xmlDecode(value) {
+  return String(value || '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+function stripXmlTags(value) {
+  return xmlDecode(String(value || '').replace(/<[^>]+>/g, ''));
+}
+
+function parseXmlAttrs(tag) {
+  const attrs = {};
+  String(tag || '').replace(/([\w:]+)="([^"]*)"/g, (_, key, value) => {
+    attrs[key] = xmlDecode(value);
+    return '';
+  });
+  return attrs;
+}
+
+function columnIndexFromCellRef(cellRef) {
+  const letters = String(cellRef || '').match(/^[A-Z]+/i)?.[0] || '';
+  let index = 0;
+  for (const char of letters.toUpperCase()) {
+    index = index * 26 + char.charCodeAt(0) - 64;
+  }
+  return Math.max(index - 1, 0);
+}
+
+function parseCsvRows(text) {
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let quoted = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (quoted) {
+      if (char === '"' && next === '"') {
+        cell += '"';
+        i += 1;
+      } else if (char === '"') {
+        quoted = false;
+      } else {
+        cell += char;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      quoted = true;
+    } else if (char === ',') {
+      row.push(cell);
+      cell = '';
+    } else if (char === '\n') {
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = '';
+    } else if (char !== '\r') {
+      cell += char;
+    }
+  }
+
+  row.push(cell);
+  rows.push(row);
+  return rows.filter((items) => items.some((item) => String(item || '').trim()));
+}
+
+function extractZipEntries(buffer) {
+  const eocdSignature = 0x06054b50;
+  let eocdOffset = -1;
+  for (let i = buffer.length - 22; i >= 0; i -= 1) {
+    if (buffer.readUInt32LE(i) === eocdSignature) {
+      eocdOffset = i;
+      break;
+    }
+  }
+  if (eocdOffset === -1) throw new Error('Không tìm thấy cấu trúc ZIP trong file .xlsx.');
+
+  const entryCount = buffer.readUInt16LE(eocdOffset + 10);
+  const centralDirOffset = buffer.readUInt32LE(eocdOffset + 16);
+  const entries = new Map();
+  let offset = centralDirOffset;
+
+  for (let i = 0; i < entryCount; i += 1) {
+    if (buffer.readUInt32LE(offset) !== 0x02014b50) break;
+    const method = buffer.readUInt16LE(offset + 10);
+    const compressedSize = buffer.readUInt32LE(offset + 20);
+    const fileNameLength = buffer.readUInt16LE(offset + 28);
+    const extraLength = buffer.readUInt16LE(offset + 30);
+    const commentLength = buffer.readUInt16LE(offset + 32);
+    const localHeaderOffset = buffer.readUInt32LE(offset + 42);
+    const fileName = buffer.slice(offset + 46, offset + 46 + fileNameLength).toString('utf8');
+
+    const localNameLength = buffer.readUInt16LE(localHeaderOffset + 26);
+    const localExtraLength = buffer.readUInt16LE(localHeaderOffset + 28);
+    const dataStart = localHeaderOffset + 30 + localNameLength + localExtraLength;
+    const compressed = buffer.slice(dataStart, dataStart + compressedSize);
+    const data = method === 0 ? compressed : zlib.inflateRawSync(compressed);
+    entries.set(fileName.replace(/^\//, ''), data.toString('utf8'));
+
+    offset += 46 + fileNameLength + extraLength + commentLength;
+  }
+
+  return entries;
+}
+
+function parseSharedStrings(xml) {
+  if (!xml) return [];
+  return [...xml.matchAll(/<si[\s\S]*?<\/si>/g)].map(([si]) => {
+    const textParts = [...si.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map(([, text]) => xmlDecode(text));
+    return textParts.length ? textParts.join('') : stripXmlTags(si);
+  });
+}
+
+function parseWorksheetRows(xml, sharedStrings) {
+  return [...String(xml || '').matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)].map(([, rowXml]) => {
+    const row = [];
+    [...rowXml.matchAll(/<c([^>]*)>([\s\S]*?)<\/c>/g)].forEach(([, attrText, cellXml]) => {
+      const attrs = parseXmlAttrs(attrText);
+      const colIndex = columnIndexFromCellRef(attrs.r);
+      let value = '';
+      if (attrs.t === 's') {
+        const sharedIndex = Number((cellXml.match(/<v>([\s\S]*?)<\/v>/) || [])[1]);
+        value = sharedStrings[sharedIndex] || '';
+      } else if (attrs.t === 'inlineStr') {
+        value = stripXmlTags((cellXml.match(/<is>([\s\S]*?)<\/is>/) || [])[1] || cellXml);
+      } else {
+        value = xmlDecode((cellXml.match(/<v>([\s\S]*?)<\/v>/) || [])[1] || '');
+      }
+      row[colIndex] = String(value).trim();
+    });
+    return row;
+  }).filter((row) => row.some((item) => String(item || '').trim()));
+}
+
+function parseXlsxRows(buffer) {
+  const entries = extractZipEntries(buffer);
+  const workbookXml = entries.get('xl/workbook.xml') || '';
+  const relsXml = entries.get('xl/_rels/workbook.xml.rels') || '';
+  const firstSheet = (workbookXml.match(/<sheet[^>]*r:id="([^"]+)"[^>]*>/) || [])[1];
+  let worksheetPath = 'xl/worksheets/sheet1.xml';
+
+  if (firstSheet && relsXml) {
+    const relRegex = new RegExp(`<Relationship[^>]*Id="${firstSheet}"[^>]*Target="([^"]+)"[^>]*>`);
+    const target = (relsXml.match(relRegex) || [])[1];
+    if (target) worksheetPath = `xl/${target.replace(/^\//, '').replace(/^xl\//, '')}`;
+  }
+
+  return parseWorksheetRows(entries.get(worksheetPath), parseSharedStrings(entries.get('xl/sharedStrings.xml')));
+}
+
+function parseSpreadsheetXmlRows(text) {
+  const rows = [...String(text || '').matchAll(/<Row[\s\S]*?<\/Row>/gi)].map(([rowXml]) => {
+    const row = [];
+    let colIndex = 0;
+    [...rowXml.matchAll(/<Cell([^>]*)>([\s\S]*?)<\/Cell>/gi)].forEach(([, attrText, cellXml]) => {
+      const attrs = parseXmlAttrs(attrText);
+      if (attrs['ss:Index']) colIndex = Number(attrs['ss:Index']) - 1;
+      row[colIndex] = stripXmlTags((cellXml.match(/<Data[^>]*>([\s\S]*?)<\/Data>/i) || [])[1] || cellXml).trim();
+      colIndex += 1;
+    });
+    return row;
+  });
+  return rows.filter((row) => row.some((item) => String(item || '').trim()));
+}
+
+function parseExcelRows(fileName, buffer) {
+  const lowerName = String(fileName || '').toLowerCase();
+  if (lowerName.endsWith('.xlsx')) return parseXlsxRows(buffer);
+
+  const text = buffer.toString('utf8').replace(/^\uFEFF/, '');
+  if (lowerName.endsWith('.csv')) return parseCsvRows(text);
+  if (/Workbook/i.test(text) && /<Row/i.test(text)) return parseSpreadsheetXmlRows(text);
+  return parseCsvRows(text);
+}
+
+function rowsToDeviceImport(rows) {
+  if (!rows.length) return [];
+  const headers = rows[0].map((header) => EXCEL_HEADER_MAP[normalizeHeader(header)] || '');
+  const hasMappedHeader = headers.includes('name') && headers.includes('type');
+  const dataRows = hasMappedHeader ? rows.slice(1) : rows;
+  const fallbackHeaders = ['name', 'type', 'area', 'quantity', 'user', 'content', 'status'];
+  const activeHeaders = hasMappedHeader ? headers : fallbackHeaders;
+
+  return dataRows.map((row, index) => {
+    const device = {};
+    activeHeaders.forEach((key, colIndex) => {
+      if (key) device[key] = row[colIndex];
+    });
+
+    const quantity = Number.parseInt(device.quantity, 10);
+    return {
+      rowNumber: index + (hasMappedHeader ? 2 : 1),
+      name: String(device.name || '').trim(),
+      type: String(device.type || '').trim(),
+      area: String(device.area || '').trim(),
+      quantity: Number.isInteger(quantity) && quantity > 0 ? quantity : 1,
+      user: String(device.user || '').trim(),
+      content: String(device.content || '').trim(),
+      status: normalizeStatus(device.status),
+    };
+  }).filter((device) => device.name || device.type || device.area || device.user || device.content);
+}
+
+function importDeviceRows(devicesToImport, callback) {
+  const insertedRows = [];
+  const errors = [];
+
+  db.serialize(() => {
+    db.run('BEGIN TRANSACTION');
+    const insertNext = (index) => {
+      if (index >= devicesToImport.length) {
+        db.run('COMMIT', (commitErr) => callback(commitErr, insertedRows, errors));
+        return;
+      }
+
+      const item = devicesToImport[index];
+      if (!item.name || !item.type || !item.status) {
+        errors.push({ rowNumber: item.rowNumber, error: 'Thiếu tên thiết bị, loại hoặc tình trạng.' });
+        insertNext(index + 1);
+        return;
+      }
+
+      if (!DEVICE_STATUS_VALUES.includes(item.status)) {
+        errors.push({ rowNumber: item.rowNumber, error: 'Tình trạng chỉ được là Hoạt động tốt, Đang bảo trì hoặc Hỏng.' });
+        insertNext(index + 1);
+        return;
+      }
+
+      db.run(
+        `INSERT INTO devices(name, type, area, status, quantity, user, content, image, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, '', datetime('now', 'localtime'))`,
+        [item.name, item.type, item.area, item.status, item.quantity, item.user, item.content],
+        function onImportInsert(err) {
+          if (err) {
+            errors.push({ rowNumber: item.rowNumber, error: 'Không thể lưu dòng này.' });
+          } else {
+            insertedRows.push({ ...item, id: this.lastID });
+          }
+          insertNext(index + 1);
+        },
+      );
+    };
+    insertNext(0);
+  });
 }
 
 app.post('/api/admin/login', (req, res) => {
@@ -197,12 +484,11 @@ app.post('/api/admin/login', (req, res) => {
         userId: userRow.id,
         username: userRow.username,
         role: userRow.role,
-        lastActivityAt: Date.now(),
       });
 
       res.setHeader(
         'Set-Cookie',
-        `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=300`,
+        `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax`,
       );
 
       return res.json({ authenticated: true, userId: userRow.id, username: userRow.username, role: userRow.role });
@@ -218,7 +504,6 @@ app.get('/api/admin/session', (req, res) => {
     return res.json({ authenticated: false });
   }
 
-  touchSession(token);
   return res.json({
     authenticated: true,
     userId: session.userId,
@@ -309,6 +594,7 @@ app.post('/api/device-change-history/:id/restore', requireAuth, requireAdmin, (r
         name: String(oldSnapshot.name || '').trim(),
         type: String(oldSnapshot.type || '').trim(),
         status: String(oldSnapshot.status || '').trim(),
+        area: String(oldSnapshot.area || '').trim(),
         quantity: Number.parseInt(oldSnapshot.quantity, 10) || 1,
         user: String(oldSnapshot.user || '').trim(),
         content: String(oldSnapshot.content || '').trim(),
@@ -321,12 +607,12 @@ app.post('/api/device-change-history/:id/restore', requireAuth, requireAdmin, (r
       }
 
       const insertSql = restored.created_at
-        ? `INSERT INTO devices(id, name, type, status, quantity, user, content, image, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        : `INSERT INTO devices(id, name, type, status, quantity, user, content, image, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))`;
+        ? `INSERT INTO devices(id, name, type, area, status, quantity, user, content, image, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        : `INSERT INTO devices(id, name, type, area, status, quantity, user, content, image, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))`;
 
       const params = restored.created_at
-        ? [restored.id, restored.name, restored.type, restored.status, restored.quantity, restored.user, restored.content, restored.image, restored.created_at]
-        : [restored.id, restored.name, restored.type, restored.status, restored.quantity, restored.user, restored.content, restored.image];
+        ? [restored.id, restored.name, restored.type, restored.area, restored.status, restored.quantity, restored.user, restored.content, restored.image, restored.created_at]
+        : [restored.id, restored.name, restored.type, restored.area, restored.status, restored.quantity, restored.user, restored.content, restored.image];
 
       db.run(insertSql, params, (insertErr) => {
         if (insertErr) return res.status(500).json({ error: 'Không thể khôi phục thiết bị đã xóa.' });
@@ -410,10 +696,47 @@ app.delete('/api/approved-quotes/:id', requireAuth, requireAdmin, (req, res) => 
   });
 });
 
+
+app.post('/api/devices/import', requireAuth, (req, res) => {
+  const fileName = String(req.body.fileName || '').trim();
+  const fileData = String(req.body.fileData || '').trim();
+
+  if (!fileName || !fileData) {
+    return res.status(400).json({ error: 'Vui lòng chọn file Excel để import.' });
+  }
+
+  if (!/\.(xlsx|xls|csv)$/i.test(fileName)) {
+    return res.status(400).json({ error: 'File import phải có định dạng .xlsx, .xls hoặc .csv.' });
+  }
+
+  const base64 = fileData.includes(',') ? fileData.split(',').pop() : fileData;
+  let buffer;
+  try {
+    buffer = Buffer.from(base64, 'base64');
+    const rows = parseExcelRows(fileName, buffer);
+    const devicesToImport = rowsToDeviceImport(rows);
+
+    if (!devicesToImport.length) {
+      return res.status(400).json({ error: 'File Excel không có dòng dữ liệu thiết bị hợp lệ.' });
+    }
+
+    return importDeviceRows(devicesToImport, (err, insertedRows, errors) => {
+      if (err) return res.status(500).json({ error: 'Không thể hoàn tất import thiết bị.' });
+      if (!insertedRows.length) {
+        return res.status(400).json({ error: errors[0]?.error || 'Không có dòng thiết bị nào được import.', errors });
+      }
+      return res.status(201).json({ inserted: insertedRows.length, skipped: errors.length, errors, rows: insertedRows });
+    });
+  } catch (err) {
+    return res.status(400).json({ error: 'Không thể đọc file Excel. Vui lòng kiểm tra đúng mẫu dữ liệu.', detail: err.message });
+  }
+});
+
 app.post('/api/devices', requireAuth, (req, res) => {
-  const { name, type, status, quantity = 1, user = '', content = '', image = '' } = req.body;
+  const { name, type, area = '', status, quantity = 1, user = '', content = '', image = '' } = req.body;
   const cleanName = (name || '').trim();
   const cleanType = (type || '').trim();
+  const cleanArea = (area || '').trim();
   const cleanStatus = (status || '').trim();
   const cleanQuantity = Number.parseInt(quantity, 10);
   const cleanUser = (user || '').trim();
@@ -427,8 +750,8 @@ app.post('/api/devices', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'Số lượng thiết bị phải là số nguyên lớn hơn 0.' });
   }
 
-  const sql = `INSERT INTO devices(name, type, status, quantity, user, content, image, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))`;
-  db.run(sql, [cleanName, cleanType, cleanStatus, cleanQuantity, cleanUser, cleanContent, image], function onInsert(err) {
+  const sql = `INSERT INTO devices(name, type, area, status, quantity, user, content, image, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))`;
+  db.run(sql, [cleanName, cleanType, cleanArea, cleanStatus, cleanQuantity, cleanUser, cleanContent, image], function onInsert(err) {
     if (err) return res.status(500).json({ error: 'Không thể thêm thiết bị.' });
 
     db.get(`SELECT * FROM devices WHERE id = ?`, [this.lastID], (getErr, row) => {
@@ -440,9 +763,10 @@ app.post('/api/devices', requireAuth, (req, res) => {
 
 app.put('/api/devices/:id', requireAuth, (req, res) => {
   const id = Number(req.params.id);
-  const { name, type, status, quantity = 1, user = '', content = '', image } = req.body;
+  const { name, type, area = '', status, quantity = 1, user = '', content = '', image } = req.body;
   const cleanName = (name || '').trim();
   const cleanType = (type || '').trim();
+  const cleanArea = (area || '').trim();
   const cleanStatus = (status || '').trim();
   const cleanQuantity = Number.parseInt(quantity, 10);
   const cleanUser = (user || '').trim();
@@ -465,12 +789,12 @@ app.put('/api/devices/:id', requireAuth, (req, res) => {
     if (!oldRow) return res.status(404).json({ error: 'Không tìm thấy thiết bị.' });
 
     const sql = image !== undefined
-      ? `UPDATE devices SET name = ?, type = ?, status = ?, quantity = ?, user = ?, content = ?, image = ? WHERE id = ?`
-      : `UPDATE devices SET name = ?, type = ?, status = ?, quantity = ?, user = ?, content = ? WHERE id = ?`;
+      ? `UPDATE devices SET name = ?, type = ?, area = ?, status = ?, quantity = ?, user = ?, content = ?, image = ? WHERE id = ?`
+      : `UPDATE devices SET name = ?, type = ?, area = ?, status = ?, quantity = ?, user = ?, content = ? WHERE id = ?`;
 
     const params = image !== undefined
-      ? [cleanName, cleanType, cleanStatus, cleanQuantity, cleanUser, cleanContent, image, id]
-      : [cleanName, cleanType, cleanStatus, cleanQuantity, cleanUser, cleanContent, id];
+      ? [cleanName, cleanType, cleanArea, cleanStatus, cleanQuantity, cleanUser, cleanContent, image, id]
+      : [cleanName, cleanType, cleanArea, cleanStatus, cleanQuantity, cleanUser, cleanContent, id];
 
     db.run(sql, params, function onUpdate(err) {
       if (err) return res.status(500).json({ error: 'Không thể cập nhật thiết bị.' });
@@ -562,6 +886,54 @@ app.post('/api/users', requireAuth, requireAdmin, (req, res) => {
       });
     },
   );
+});
+
+
+app.put('/api/users/:id/role', requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const role = String(req.body.role || '').trim() === 'admin' ? 'admin' : 'user';
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'ID người dùng không hợp lệ.' });
+  }
+
+  if (id === req.session.userId) {
+    return res.status(400).json({ error: 'Không thể tự thay đổi quyền của tài khoản đang đăng nhập.' });
+  }
+
+  db.get(`SELECT id, username, role FROM app_users WHERE id = ?`, [id], (findErr, userRow) => {
+    if (findErr) return res.status(500).json({ error: 'Không thể kiểm tra người dùng.' });
+    if (!userRow) return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
+
+    const updateRole = () => {
+      db.run(`UPDATE app_users SET role = ? WHERE id = ?`, [role, id], function onUpdate(err) {
+        if (err) return res.status(500).json({ error: 'Không thể cập nhật quyền người dùng.' });
+        if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
+
+        for (const session of sessions.values()) {
+          if (session.userId === id) session.role = role;
+        }
+
+        db.get(`SELECT id, username, role, created_at FROM app_users WHERE id = ?`, [id], (getErr, row) => {
+          if (getErr) return res.status(500).json({ error: 'Đã cập nhật nhưng không thể đọc lại dữ liệu.' });
+          return res.json(row);
+        });
+      });
+    };
+
+    if (userRow.role === 'admin' && role === 'user') {
+      db.get(`SELECT COUNT(*) AS admin_count FROM app_users WHERE role = 'admin'`, (countErr, countRow) => {
+        if (countErr) return res.status(500).json({ error: 'Không thể kiểm tra số lượng admin.' });
+        if (Number(countRow?.admin_count || 0) <= 1) {
+          return res.status(400).json({ error: 'Không thể hạ quyền admin cuối cùng.' });
+        }
+        return updateRole();
+      });
+      return;
+    }
+
+    return updateRole();
+  });
 });
 
 app.delete('/api/users/:id', requireAuth, requireAdmin, (req, res) => {
