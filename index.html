@@ -11,7 +11,29 @@
     <div class="bg-orb orb-1" aria-hidden="true"></div>
     <div class="bg-orb orb-2" aria-hidden="true"></div>
     <div class="bg-orb orb-3" aria-hidden="true"></div>
-    <main class="app-shell">
+
+    <div class="page-layout">
+      <aside class="side-ad side-ad-left" aria-label="Banner quảng cáo bên trái">
+        <div class="side-ad-card" data-side-ad-slider data-slider-interval="4500">
+          <a class="side-ad-slide active" href="#" target="_blank" rel="noopener">
+            <span class="side-ad-eyebrow">Quảng cáo</span>
+            <strong>Banner trái 1</strong>
+            <span class="side-ad-note">Thay nội dung này bằng ảnh hoặc nội dung quảng cáo.</span>
+          </a>
+          <a class="side-ad-slide" href="#" target="_blank" rel="noopener">
+            <span class="side-ad-eyebrow">Quảng cáo</span>
+            <strong>Banner trái 2</strong>
+            <span class="side-ad-note">Slide thứ 2 cho banner bên trái.</span>
+          </a>
+          <div class="side-ad-controls" aria-label="Điều khiển banner trái">
+            <button type="button" class="side-ad-nav" data-slider-action="prev" aria-label="Banner trái trước">‹</button>
+            <div class="side-ad-dots" aria-hidden="true"></div>
+            <button type="button" class="side-ad-nav" data-slider-action="next" aria-label="Banner trái sau">›</button>
+          </div>
+        </div>
+      </aside>
+
+      <main class="app-shell">
         <!-- <header class="hero">
         <div class="hero-top">
           <div>
@@ -57,6 +79,11 @@
           <div class="form-row">
             <label for="type">Loại</label>
             <input id="type" required placeholder="Laptop / Máy in / Màn hình" />
+          </div>
+
+          <div class="form-row">
+            <label for="area">Khu vực</label>
+            <input id="area" placeholder="VD: Văn phòng tầng 2 / Kho IT" />
           </div>
 
           <div class="form-row">
@@ -144,9 +171,12 @@
             <a class="btn btn-primary" href="/approved-quotes.html">✅ Báo giá đã duyệt</a>
             <a class="btn btn-secondary" href="/file-storage.html">🗂️ Kho file</a>
             <a class="btn btn-secondary" href="/history.html">🕘 Xem lịch sử thay đổi</a>
+            <label class="btn btn-secondary import-excel-btn" for="importExcelInput">📥 Import Excel</label>
+            <input type="file" id="importExcelInput" class="import-excel-input" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" />
             <button class="btn btn-export" id="exportBtn">⬇️ Xuất Excel</button>
           </div>
         </div>
+        <p class="import-help">Import file Excel theo các cột: Tên thiết bị, Loại, Khu vực, Số lượng, User, Nội dung, Tình trạng. Sau khi import, bảng bên dưới sẽ tự cập nhật.</p>
 
         <div class="stats" id="stats">
           <article class="stat-item stat-total">
@@ -186,6 +216,7 @@
                 <th>Ảnh</th>
                 <th>Tên thiết bị</th>
                 <th>Loại</th>
+                <th>Khu vực</th>
                 <th>Số lượng</th>
                 <th>User</th>
                 <th>Nội dung</th>
@@ -197,8 +228,42 @@
             <tbody id="list"></tbody>
           </table>
         </div>
+        <div class="pagination-bar" aria-label="Phân trang danh sách thiết bị">
+          <div class="pagination-summary" id="paginationInfo">Hiển thị 0 thiết bị</div>
+          <label class="pagination-size" for="pageSizeSelect">
+            Số dòng/trang
+            <select id="pageSizeSelect">
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </label>
+          <div class="pagination-controls" id="paginationControls"></div>
+        </div>
       </section>
-    </main>
+      </main>
+
+      <aside class="side-ad side-ad-right" aria-label="Banner quảng cáo bên phải">
+        <div class="side-ad-card" data-side-ad-slider data-slider-interval="5200">
+          <a class="side-ad-slide active" href="#" target="_blank" rel="noopener">
+            <span class="side-ad-eyebrow">Quảng cáo</span>
+            <strong>Banner phải 1</strong>
+            <span class="side-ad-note">Thay nội dung này bằng ảnh hoặc nội dung quảng cáo.</span>
+          </a>
+          <a class="side-ad-slide" href="#" target="_blank" rel="noopener">
+            <span class="side-ad-eyebrow">Quảng cáo</span>
+            <strong>Banner phải 2</strong>
+            <span class="side-ad-note">Slide thứ 2 cho banner bên phải.</span>
+          </a>
+          <div class="side-ad-controls" aria-label="Điều khiển banner phải">
+            <button type="button" class="side-ad-nav" data-slider-action="prev" aria-label="Banner phải trước">‹</button>
+            <div class="side-ad-dots" aria-hidden="true"></div>
+            <button type="button" class="side-ad-nav" data-slider-action="next" aria-label="Banner phải sau">›</button>
+          </div>
+        </div>
+      </aside>
+    </div>
     <div id="toast" class="toast"></div>
     <script src="script.js"></script>
   </body>

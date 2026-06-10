@@ -9,7 +9,6 @@ const currentRoleEl = document.getElementById('currentRole');
 let histories = [];
 let filteredHistories = [];
 let currentUser = { role: 'user', username: '' };
-const SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 function showToast(message) {
   toastEl.textContent = message;
@@ -56,6 +55,7 @@ function formatDeviceSnapshot(rawValue) {
     <ul class="history-device-info">
       <li><strong>Tên:</strong> ${sanitize(snapshot.name || '-')}</li>
       <li><strong>Loại:</strong> ${sanitize(snapshot.type || '-')}</li>
+      <li><strong>Khu vực:</strong> ${sanitize(snapshot.area || '-')}</li>
       <li><strong>Số lượng:</strong> ${sanitize(snapshot.quantity ?? 1)}</li>
       <li><strong>User:</strong> ${sanitize(snapshot.user || '-')}</li>
       <li><strong>Nội dung:</strong> ${sanitize(snapshot.content || '-')}</li>
@@ -143,29 +143,6 @@ function renderHistoryRows(items) {
       </tr>
     `)
     .join('');
-}
-
-function setupIdleLogout() {
-  let idleTimer = null;
-
-  const logoutForIdle = async () => {
-    await fetch('/api/admin/logout', { method: 'POST' }).catch(() => {});
-    showToast('Phiên đăng nhập đã hết hạn do không thao tác trong 5 phút.');
-    setTimeout(() => {
-      window.location.href = '/admin.html';
-    }, 400);
-  };
-
-  const resetIdleTimer = () => {
-    if (idleTimer) clearTimeout(idleTimer);
-    idleTimer = setTimeout(logoutForIdle, SESSION_IDLE_TIMEOUT_MS);
-  };
-
-  ['click', 'keydown', 'mousemove', 'scroll', 'touchstart'].forEach((eventName) => {
-    window.addEventListener(eventName, resetIdleTimer, { passive: true });
-  });
-
-  resetIdleTimer();
 }
 
 function parseSnapshot(rawValue) {
@@ -281,12 +258,14 @@ const rowsXml = filteredHistories
         actionType,
         oldSnapshot.name || '-',
         oldSnapshot.type || '-',
+        oldSnapshot.area || '-',
         oldSnapshot.quantity ?? 1,
         oldSnapshot.user || '-',
         oldSnapshot.content || '-',
         oldSnapshot.status || '-',
         newSnapshot.name || '-',
         newSnapshot.type || '-',
+        newSnapshot.area || '-',
         newSnapshot.quantity ?? 1,
         newSnapshot.user || '-',
         newSnapshot.content || '-',
@@ -318,13 +297,17 @@ const rowsXml = filteredHistories
       <Column ss:AutoFitWidth="1" ss:Width="100"/>
       <Column ss:AutoFitWidth="1" ss:Width="140"/>
       <Column ss:AutoFitWidth="1" ss:Width="120"/>
+      <Column ss:AutoFitWidth="1" ss:Width="140"/>
       <Column ss:AutoFitWidth="1" ss:Width="120"/>
       <Column ss:AutoFitWidth="1" ss:Width="200"/>
       <Column ss:AutoFitWidth="1" ss:Width="120"/>
       <Column ss:AutoFitWidth="1" ss:Width="140"/>
+      <Column ss:AutoFitWidth="1" ss:Width="140"/>
       <Column ss:AutoFitWidth="1" ss:Width="120"/>
+      <Column ss:AutoFitWidth="1" ss:Width="140"/>
       <Column ss:AutoFitWidth="1" ss:Width="120"/>
       <Column ss:AutoFitWidth="1" ss:Width="200"/>
+      <Column ss:AutoFitWidth="1" ss:Width="120"/>
       <Column ss:AutoFitWidth="1" ss:Width="120"/>
       <Column ss:AutoFitWidth="1" ss:Width="170"/>
       <Row>
@@ -332,12 +315,14 @@ const rowsXml = filteredHistories
         <Cell ss:StyleID="Header"><Data ss:Type="String">Loại thao tác</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Tên cũ</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Loại cũ</Data></Cell>
+        <Cell ss:StyleID="Header"><Data ss:Type="String">Khu vực cũ</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Số lượng cũ</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">User cũ</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Nội dung cũ</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Tình trạng cũ</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Tên mới</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Loại mới</Data></Cell>
+        <Cell ss:StyleID="Header"><Data ss:Type="String">Khu vực mới</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Số lượng mới</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">User mới</Data></Cell>
         <Cell ss:StyleID="Header"><Data ss:Type="String">Nội dung mới</Data></Cell>
